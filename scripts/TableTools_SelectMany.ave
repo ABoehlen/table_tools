@@ -1,0 +1,76 @@
+'########################################################
+'#
+'# Filename:     TableTools_SelectMany.ave
+'# Author:       Adrian Boehlen
+'# Date:         29.05.2014
+'# Version:      0.6
+'#
+'# Purpose:      selektiert alle Records zwischen zwei
+'#               zu definierenden Zeilen
+'#               
+'#               bereits vorhandene Selektionen werden
+'#               zuvor aufgehoben
+'#
+'########################################################
+
+
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Info("Start this script from an active Table.","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+
+'# erste und letzte zu selektierende Zeile definieren
+
+theFirst = MsgBox.Input("Geben Sie die erste zu selektierende Zeile ein", "erste Zeile definieren",1.AsString)
+
+if (theFirst = nil) then
+  return nil
+elseif (theFirst.IsNumber.Not) then
+  MsgBox.Error("Ungueltige Eingabe","Abbruch")
+  return nil
+elseif (theFirst.AsNumber < 1) then
+  MsgBox.Error("Zeile" ++theFirst.AsString++ "existiert nicht","Abbruch")
+  return nil
+end
+
+theLast = MsgBox.Input("Geben Sie die letzte zu selektierende Zeile ein", "letzte Zeile definieren",2.AsString)
+
+'# Anzahl Zeilen ermitteln und Eingabe pruefen
+
+theRecords = 0
+for each rec in theVTab
+  theRecords = theRecords + 1
+end
+
+if (theLast = nil) then
+  return nil
+elseif (theLast.IsNumber.Not) then
+  MsgBox.Error("Ungueltige Eingabe","Abbruch")
+  return nil
+elseif ((theLast.AsNumber < 1) or (theLast.AsNumber > theRecords)) then
+  MsgBox.Error("Zeile" ++theLast.AsString++ "existiert nicht","Abbruch")
+  return nil
+end
+
+
+theFirst = theFirst.AsNumber - 1
+theLast = theLast.AsNumber - 1
+
+'# allfaellig vorhandene Selektionen aufheben
+
+theSelected = theVTab.GetSelection
+theSelected.ClearAll
+theVTab.UpdateSelection
+
+'# Selektion durchfuehren
+
+for each rec in theFirst..theLast
+  theSelected.Set(rec)
+  theVTab.SetSelection(theSelected)
+  theVTab.UpdateSelection
+end
+

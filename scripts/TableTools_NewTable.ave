@@ -1,0 +1,35 @@
+'########################################################
+'#
+'# Filename:     TableTools_NewTable.ave
+'# Author:       Adrian Boehlen
+'# Date:         16.11.2014
+'# Version:      0.2
+'# Based on:     Table.New
+'#
+'# Purpose:      erstellt eine neue Tabelle im dbf-Format             
+'#
+'########################################################
+
+name = av.GetProject.FindGUI("Table")
+theFile = FileDialog.Put(av.GetProject.MakeFileName(name.AsString,"dbf"), 
+                         "*.dbf", 
+                         "New Table")
+if (theFile = NIL) then
+  return nil
+end
+
+v = VTab.MakeNew(theFile,dBASE)
+if (v.HasError) then
+    if (v.HasLockError) then
+      MsgBox.Error("Unable to acquire Write Lock for file " + theFile.GetBaseName, "")
+    else
+      MsgBox.Error("Unable to create " + theFile.GetBaseName, "")
+    end
+    return nil
+end
+newTable = Table.MakeWithGUI(VTab.MakeNew(theFile,dBASE), av.GetProject.FindGUI("Table").AsString)
+newTable.SetName(newTable.GetVTab.GetName)
+newTable.SetCreator("Adrian Boehlen")
+newTable.GetWin.Open
+newTable.GetVTab.SetEditable(False)
+newTable.GetVTab.StartEditingWithRecovery

@@ -1,0 +1,443 @@
+' NAME: TableTools_ModifyFieldType.ave
+' HERKUNFT: Mel VanderWal, Tom Cosmas - MODIFIED : Harald (Several Fields, modify Type and Precision)
+' EINBINDUNG MTOOLS: Tabellen-Menueeintrag (Label: Rename and modify Fields... )
+' HILFE: Benennt die ausgewaehlten Felder um und aendert - wenn gewollt - Type, Width und Precision  (s. Ctrl-Klick Info)
+'***************************************************************
+
+' CTRL-KLICK Info (erscheint, wenn das Skript bei gedrueckter Strg- bzw. Ctrl-Taste aufgerufen wird)
+ 
+if (System.IsControlKeyDown) then
+
+  message =
+    " "+nl+
+    
+    "SCRIPTNAME: mm_tableRenameModifyField "+nl+nl+
+  
+    "ORIGIN: Mel VanderWal, Tom Cosmas, Harald (07.2003) "+nl+nl+
+    
+    "Renames the chosen fields and modifies - if desired - type, width and precision. "+nl+nl+
+    
+    "The new name should count less than 32 characters, More than 10 characters create an alias. "+nl+nl+
+    
+    "If you want to preserve the originial name of the modified fields, hold the Shift key down and click OK when you will be asked "+
+    "about a new field name. The source field gets a new alias in this case - you should let delete it after all. "+
+    "Act with caution! I have not tested this function according to the boundless possibilities to play up with "+
+    "aliases and doubled names in a table. Handle your data with care. "+nl+nl+
+
+    "There are fields created with the new name and the new properties. The attributes are copied to the new field. "+
+    "The old field is deleted if desired. A new table will not being created (so you can apply this "+
+    "function to feature tables without running in a Segmentation Violation). "+nl+nl+
+    
+    "It's mainly in your own responsibility to check the old values are fitting to the new type (Error check is not very broad). "+nl+nl+
+    
+    "Converting strings to numbers will substitute a comma with a dot. "+
+    "'NoNumbers' will be converted to 'NULL', the appropriate records will be selected. "+nl+nl+
+    
+    "Converting booleans to numbers will set a 0 for FALSE and a 1 for TRUE. "+nl+nl+
+  
+    "--------------------------------------------------------------------------------------"+nl+
+    "Some DBF limitations to take into account: ".UCase+nl+nl+
+    
+    "String fields: "+nl+
+    "Width <= 254, Precision = 0 "+nl+nl+
+    
+    "Number fields: "+nl+
+    "Width <= 20, Precision <= 18 "+nl+nl+
+    
+    "Field names: "+nl+
+    "- Length <= 10"+nl+
+    "- More than 10 characters create an alias, truncated in the dbf file"+nl+
+    "- Only alphanumeric character (A -Z, 0 - 9) and _ (underscores)"+nl+
+    "- All other characters will be converted to underscores"+nl+
+    "- Lower case will be converted to upper case"+nl+ 
+    "- First character has to be a letter - no number or underscore"+nl+
+    "- Numbers or underscores as first character will be converted to 'Z'"+nl
+
+  msgbox.report(message,"INFO: Rename and modify Fields ...")
+  
+  return nil
+end
+
+'-------------------------------------------------------------
+
+'Written by:  Mel VanderWal (mel.vanderwal@telus.net)
+'Modified by: Tom Cosmas (tcosmas@dep.state.nj.us)
+'             to allow change in width of field and give the option to keep the old field
+
+'             Harald Kuttig (kuttig@geo-net.de): 
+'              Insert a Loop over every user chosen Fields
+'              Insert a Name Unique protection
+'              Insert the Option to change Type (Dec or Character), Width and Precision
+'              ...and some minor changes
+              
+'==============================================================================
+
+theTable = av.GetActiveDoc
+
+if (theTable.is(table).not) then
+  MsgBox.Info("Start this script from an active Table.","")
+  return NIL
+end
+
+theVTab = theTable.GetVTab
+
+theEdState = theVTab.IsEditable
+theNRecs = theVTab.GetNumRecords
+
+'------------------------------------------------------------------------
+' AUSWAHLDIALOG EINGEFUEGT - STATT ACTIVE FIELD UEBER ALLE FELDER...
+' (SHAPEFELD AUSSCHLIESSEN) :
+
+lstStrFields = List.Make
+for each theFld in theVTab.GetFields
+  if ((theFld.AsString <> "Shape")and (theFld.IsVisible)) then
+    lstStrFields.Add(theFld.GetAlias)
+  end
+end
+if (lstStrFields.Count = 0) then
+  MsgBox.Info("There are no fields in the table or all fields are ''invisible''. " + 
+               "Choose ''Table | Properties'' to make fields visible.", "Modify Fields")
+  return NIL
+end
+
+theFldList = MsgBox.MultiListAsString(lstStrFields, "Select all fields to modify :", "Modify Fields")
+if (theFldList = NIL) then 
+  return NIL
+end
+
+'------------------------------------------------------------------------
+' MAKE SURE TABLE IS EDITABLE
+
+if (theVtab.CanEdit.not) then
+  MsgBox.Info("This table is not writable."+NL+
+  "Check writing permission."," Error")
+  return NIL
+end
+
+if (theVTab.IsBeingEditedWithRecovery) then
+  theVTab.StopEditingWithRecovery(TRUE)
+end
+
+theVtab.StartEditingWithRecovery
+theTable.StopEditing
+
+'--------------------------------------------------
+' GETTN STARTED
+
+for each Fld in theFldList
+
+  theFld = theVTab.FindField(Fld)
+  theFldString = theFld.getName
+  theFldAlias = theFld.getAlias
+  theName = theFldString
+  
+  theType = theFld.GetType
+  theTypeString = theFld.GetType.AsString
+
+
+  theWidth = theFld.GetWidth
+  theWidthString = theFld.GetWidth.AsString
+  
+  thePrecision = theFld.GetPrecision
+  thePrecisionString = theFld.GetPrecision.AsString
+
+
+  '--------------------------------------------------------------------------
+  ' CREATE A COUNT STRING
+
+  if (theFldString.Right(1).isNumber) then
+    theCountStr = ((theFldString.Right(1).AsNumber)+1).AsString
+  else
+    theCountStr = "1"
+  end
+
+  '--------------------------------------------------------------------------
+  ' LET THE USER ENTER THE NEW NAME. CHECK IF IT'S UNIQUE
+  cnt = 0
+  a = 0
+  while (a = 0)
+  
+    if (theName.Right(1).isNumber) then
+      theNameString = theName.Left(theName.count-1)+(theCountStr.AsNumber+cnt).asString
+    else
+      theNameString = theName+"1"
+    end
+    
+    if (theFldAlias <> theName) then
+      theTitleString =  " '"+theFld.GetName+"' (with alias:  "+theFld.getAlias+")"
+    else
+      theTitleString =  " ''"+theFld.GetName+"''"
+    end
+    
+    theName = MsgBox.Input("Name the new field  (Press  'Shift'  and  'OK'  to preserve original field name):", 
+                           theTitleString, theNameString)
+        
+    if (theName = NIL) then 
+      break
+      continue
+    end
+    
+    if (System.isShiftKeyDown) then
+      indexed = FALSE
+      theName = theFld.getName
+    else
+      indexed = TRUE
+    end
+
+    if (theVTab.FindField(theName) <> NIL) then
+      if (indexed.not) then
+        theTmpN = theVTab.FindField(theName).setAlias(theName+"_ori")
+        theName = theFldString
+        a = 1
+      else
+        cnt = cnt + 1
+        MsgBox.Info("A field with the name '"+theName+"' already exists. Type another name...","")
+      end
+    else 
+      a = 1
+    end
+  end
+  
+  if (theName = NIL) then
+    continue
+  end
+  
+  '--------------------------------------------------
+  ' ZUSAETZLICHE MODIFIKATIONEN EINGEFUEGT
+
+  theC2D = FALSE
+  theD2C = FALSE
+  theB2D = FALSE
+  theB2C = FALSE
+  theDate2C = FALSE
+
+  changeOther = MsgBox.YesNo("Do you also want to change some other properties of the chosen fields "+
+                          "(Type, Width, Precision)?","Change Other - aside from the Name?",TRUE)
+
+  if (changeOther = TRUE) then
+  
+    if (theTypeString = "FIELD_CHAR") then
+      theTypeStringB = "CHAR"
+    elseif (theTypeString = "FIELD_DECIMAL") then
+      theTypeStringB = "DECIMAL"
+    elseif (theTypeString = "FIELD_LOGICAL") then
+      theTypeStringB = "LOGICAL"
+    elseif (theTypeString = "FIELD_DATE") then
+      theTypeStringB = "DATE"
+    else
+      theTypeStringB = theTypeString
+    end
+    
+    theLabels = {"Type (''dec'' / ''char'' / ''bool'' / ''dat'')","Width","Precision"}
+    theDefaults = {theTypeStringB,theWidthString,thePrecisionString}
+    
+    
+    b = 0
+    c = 0
+    d = 0
+    while ((b = 0) or (c = 0) or (d = 0))
+
+      result = MsgBox.MultiInput("Enter modifications (Current =  "+theTypeStringB+" / "+theWidthString+" / "+
+               thePrecisionString+"):"," '"+theFldString+"' -->  '"+theName+"'",theLabels,theDefaults)
+    
+      if ((result.count = 0) or (result = nil)) then
+        break
+      end
+          
+      nt = result.Get(0)
+      if ((nt = "FIELD_LOGICAL") or (nt = "FIELD_DATE") or (nt = "FIELD_DECIMAL") or (nt = "FIELD_CHAR")) then
+        theType = ("#"+nt).AsEnum
+        b = 1
+      elseif ((nt = "char") or (nt = "decimal") or (nt = "date") or (nt = "logical")) then 
+        theType = ("#FIELD_"+nt).AsEnum
+        b = 1
+      elseif ((nt = "d") or (nt = "dec")) then
+        theType = ("#FIELD_DECIMAL").AsEnum
+        b = 1
+      elseif ((nt = "c") or (nt = "char") or (nt = "Character")) then
+        theType = ("#FIELD_CHAR").AsEnum
+        b = 1
+      elseif ((nt = "BOOL") or (nt = "b") or (nt = "boolean") or (nt = "log")) then 
+        theType = ("#FIELD_LOGICAL").AsEnum
+        b = 1
+      elseif ((nt = "dat") or (nt = "DATE")) then 
+        theType = ("#FIELD_DATE").AsEnum
+        b = 1
+      else
+        MsgBox.Info("Unknown Entry in 'Type'. "+nl+
+                    "Retry with one of that:  [charcter, char, c],   [decimal, dec, d],   [logical, bool, log],   [date, dat]. "+
+                    "", "Info:  '"+theFldString+"' -->  '"+theName+"'")
+        b = 0
+      end
+      
+      theC2D = FALSE
+      theD2C = FALSE
+      theB2D = FALSE
+      theB2C = FALSE
+      theDate2C = FALSE
+      
+      if (theType.asString <> theTypeString) then
+        if ((theType.AsString = "FIELD_DECIMAL") and (theTypeString = "FIELD_CHAR")) then
+          theC2D = TRUE
+        elseif ((theType.AsString = "FIELD_CHAR") and (theTypeString = "FIELD_DECIMAL")) then
+          theD2C = TRUE
+        elseif ((theType.AsString = "FIELD_DECIMAL") and (theTypeString = "FIELD_LOGICAL")) then
+          theB2D = TRUE
+        elseif ((theType.AsString = "FIELD_CHAR") and (theTypeString = "FIELD_LOGICAL")) then
+          theB2C = TRUE
+        elseif ((theType.AsString = "FIELD_CHAR") and (theTypeString = "FIELD_DATE")) then
+          theDate2C = TRUE
+        end
+      end
+      
+      newWidthString = result.Get(1) 
+      if ((newWidthString.isNumber.not) or (newWidthString.AsNumber < 1) or (newWidthString.AsNumber > 254) or (newWidthString.AsNumber <= thePrecision)) then
+        MsgBox.Info("Unknown entry in 'Width': "+nl+"The input is  <1,  >254,  <"+thePrecisionString+" (= Precision) or not a number. "+
+                    "", "Info:  '"+theFldString+"' -->  '"+theName+"'")
+        c = 0
+      else
+        theWidth = result.Get(1).AsNumber
+        c = 1
+      end
+      
+      newPrecString = result.Get(2)
+      if ((newPrecString.isNumber.not) or (newPrecString.AsNumber < 0) or (newPrecString.AsNumber >= theWidth)) then
+        MsgBox.Info("Unknown entry in 'Precision'. "+nl+"The input is  <0,  >"+theWidth.AsString+" (= Width) or not a number. "+
+                    "", "Info:  '"+theFldString+"' -->  '"+theName+"'")
+        d = 0
+      else
+        thePrecision = result.Get(2).AsNumber
+        d = 1
+      end
+    end  ' while
+    if ((result.count = 0) or (result = nil)) then
+      theVTab.StopEditingWithRecovery(TRUE)
+      theVTab.SetEditable(theEdState)
+      return NIL
+    end
+
+  end  ' if (changeOther...
+  
+
+  '--------------------------------------------------
+   
+  theVTab.AddFields({(Field.Make(theName,theType,theWidth,thePrecision))})
+
+  theNewField = theVTab.FindField(theName)
+  isNoNo = 0
+  selBitmap = theVtab.getSelection
+  selBitmap.ClearAll
+  
+  for each theRec in theVTab
+
+    av.ShowMsg("Rewriting  '"+theFldString+"' -->  '"+theName+"'...")
+    av.ShowStopButton
+    progress = (theRec/theVTab.GetNumRecords*100)
+    goesAhead = av.setStatus(progress)
+    if (not goesAhead) then break end
+    
+    av.UseWaitCursor
+    
+    if (theD2C) then      
+
+      theVTab.SetValue(theNewField, theRec, theVTab.ReturnValue(theFld, theRec).setFormatPrecision(thePrecision).AsString)
+      
+    elseif (theC2D) then
+      
+      theRadix = 3
+      
+      if (theVTab.ReturnValue(theFld, theRec).isNumber) then
+        theVTab.SetValue(theNewField, theRec, theVTab.ReturnValue(theFld, theRec).AsNumber)      
+        theRadix = 0
+      end
+      
+      if (theRadix = 3) then
+        if (theVTab.ReturnValue(theFld, theRec).Substitute(",",".").isNumber) then
+          theVTab.SetValue(theNewField, theRec, theVTab.ReturnValue(theFld, theRec).Substitute(",",".").AsNumber)
+          theRadix = 1
+        end
+      end
+      
+      if (theRadix = 3) then
+        if (theVTab.ReturnValue(theFld, theRec).Substitute(".",",").isNumber) then
+          theVTab.SetValue(theNewField, theRec, theVTab.ReturnValue(theFld, theRec).Substitute(".",",").AsNumber)
+          theRadix = 2
+        end
+      end
+      
+      if (theRadix = 3) then
+        theVTab.SetValue(theNewField, theRec,Number.MakeNull)
+        isNoNo = isNoNo + 1
+        selBitmap.set(theRec)
+      end
+            
+    elseif (theB2D) then
+    
+     if (theVTab.ReturnValue(theFld, theRec).asString = "TRUE") then
+       theVTab.SetValue(theNewField, theRec, 1)
+     else
+       theVTab.SetValue(theNewField, theRec, 0)
+     end
+     
+    elseif (theB2C) then
+    
+      theVTab.SetValue(theNewField, theRec, theVTab.ReturnValue(theFld, theRec).AsString)
+      
+    elseif (theDate2C) then
+    
+      theVTab.SetValue(theNewField, theRec, theVTab.ReturnValue(theFld, theRec).AsString)
+      
+    else
+    
+      theVTab.SetValue(theNewField, theRec, theVTab.ReturnValue(theFld, theRec))
+    end
+  end
+  
+  av.SetStatus(100)
+  av.ClearStatus
+  
+  theVTab.Flush  
+  theVtab.Refresh
+
+  if (isNoNo > 0) then
+    if (isNoNo = 1) then
+      theGramma = "Can not convert the value of the selected record into a number. Have written a 'NULL'-Value..."
+    else
+      theGramma = "Can not convert the values of the selected "+isNoNo.asString+" records into numbers.  Have written 'NULL'-Values..."
+    end
+    MsgBox.Info(theGramma, " NumberNot ...")
+  end
+
+  if (theVTab.isJoinedField(theFld).Not) then
+    if (indexed = False) then
+      theOldField = MsgBox.YesNo("Delete old field  '"+theFldString+"'?"+nl+"[Recommended]", "'"+theFldString+"' -->  '"+theName+"'", TRUE)
+    else
+      theOldField = MsgBox.YesNo("Delete old field  '"+theFldString+"'?", "'"+theFldString+"' -->  '"+theName+"'", TRUE)
+    end
+    if ((theOldField) and (theFld.isEditable)) then 
+      theVTab.RemoveFields({theFld}) 
+    end
+  end
+  
+  av.clearStatus
+  av.ShowMsg("llll llll llll llll llll   llll llll llll    COMPLETED: Old Field: '"+theFld.GetName+"',  New Field '"+theName+"'...")
+
+end
+
+if (theEdState = FALSE) then
+  if (theNRecs > 32765) then  ' = (2^15 -3) the 'ESRI-Number'
+    theSave = MsgBox.YesNoCancel("Save edits? "+nl+"Cancel to stay in edit mode and check the results..."," Stop Editing",TRUE)
+    if (theSave = TRUE) then
+      theVTab.StopEditingWithRecovery(TRUE)
+    elseif (theSave = FALSE) then
+      theVTab.StopEditingWithRecovery(FALSE)
+    end
+  else
+    theVTab.StopEditingWithRecovery(TRUE)
+  end
+end
+
+av.ShowMsg("llll llll llll llll llll   llll llll llll    COMPLETED: Modify Fields...")
+
+' EOF
+

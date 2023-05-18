@@ -1,0 +1,63 @@
+'########################################################
+'#
+'# Filename:     TableTools_GetFieldProperties.ave
+'# Author:       Adrian Boehlen
+'# Date:         14.05.2017
+'# Version:      0.6
+'#
+'# Purpose:      zeigt den Datentyp des selektierten
+'#               Feldes und seine Definitionen an
+'#
+'########################################################
+
+'# die Tabelle muss aktiv sein
+
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Warning("Start this script from an active Table.","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+
+'# Es muss ein Feld aktiv sein
+
+if (theTable.GetActiveField = nil) then
+  MsgBox.Warning("Es ist kein Feld aktiv","Abbruch")
+  return nil
+end
+
+theField = theTable.GetActiveField
+theFieldName = theField.GetName
+theFieldAlias = theField.GetAlias
+
+theType = theField.getType
+if (theType.AsString = "FIELD_DECIMAL") then
+  theWidth = theField.GetWidth.AsString
+  thePrecision = theField.GetPrecision.AsString
+  if (theFieldName <> theFieldAlias) then
+    MsgBox.Info("Name: "+theFieldName.AsString+NL+"Alias: "+theFieldAlias.AsString+NL+"Type: Number"+NL+"Width: "+theWidth+NL+"Precision: "+thePrecision,theFieldName.AsString+" ("+theFieldAlias.AsString+")")
+  else
+    MsgBox.Info("Name: "+theFieldName.AsString+NL+"Type: Number"+NL+"Width: "+theWidth+NL+"Precision: "+thePrecision,theFieldName.AsString)
+  end
+elseif (theType.AsString = "FIELD_CHAR") then
+  theWidth = theField.GetWidth.AsString
+  if (theFieldName <> theFieldAlias) then
+    MsgBox.Info("Name: "+theFieldName.AsString+NL+"Alias: "+theFieldAlias.AsString+NL+"Type: String"+NL+"Width: "+theWidth,theFieldName.AsString+" ("+theFieldAlias.AsString+")")
+  else
+    MsgBox.Info("Name: "+theFieldName.AsString+NL+"Type: String"+NL+"Width: "+theWidth,theFieldName.AsString)
+  end
+elseif (theType.AsString = "FIELD_LOGICAL") then
+  if (theFieldName <> theFieldAlias) then
+    MsgBox.Info("Name: "+theFieldName.AsString+NL+"Alias: "+theFieldAlias.AsString+NL+"Type: Boolean",theFieldName.AsString+" ("+theFieldAlias.AsString+")")
+  else
+    MsgBox.Info("Name: "+theFieldName.AsString+NL+"Type: Boolean",theFieldName.AsString)
+  end
+elseif (theType.AsString = "FIELD_DATE") then
+  if (theFieldName <> theFieldAlias) then
+    MsgBox.Info("Name: "+theFieldName.AsString+NL+"Alias: "+theFieldAlias.AsString+NL+"Type: Date",theFieldName.AsString+" ("+theFieldAlias.AsString+")")
+  else
+    MsgBox.Info("Name: "+theFieldName.AsString+NL+"Type: Date",theFieldName.AsString)
+  end
+end

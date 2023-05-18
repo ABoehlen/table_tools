@@ -1,0 +1,132 @@
+'##########################################################
+'#
+'# Filename:     TableTools_Date.ave
+'# Author:       Adrian Boehlen
+'# Date:         22.06.2014
+'# Version:      0.1
+'#
+'# Purpose:      Fuellt eine Spalte, bzw. deren selektierte
+'#               Zeilen mit Datumswerten, die zwischen
+'#               einem zu definierenden Start- und 
+'#               einem Enddatum liegen.            
+'#
+'##########################################################
+
+'# die Tabelle muss aktiv und im Edit-Modus sein
+
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Warning("Start this script from an active Table.","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+
+if (theVTab.CanEdit.Not) then
+  MsgBox.Warning("Die Tabelle kann nicht bearbeitet werden","Abbruch")
+  return nil
+end
+
+if (theVTab.IsEditable.Not) then
+  theVTab.StartEditingWithRecovery
+  theEditstatus = 0
+else
+  theEditstatus = 1
+end
+
+'# Es muss ein Feld vom Typ "Date" aktiv sein
+
+if (theTable.GetActiveField = nil) then
+  MsgBox.Warning("Es ist kein Feld aktiv","Abbruch")
+  return nil
+end
+
+theField = theTable.GetActiveField
+
+if ((theField.getType.AsString = "FIELD_DATE").Not) then
+  MsgBox.Warning("Der Feldtyp muss ""Date"" sein","Abbruch")
+  return nil
+end
+
+'# Start- und Enddatum einlesen und auf Gueltigkeit pruefen
+
+startDate = MsgBox.Input("Geben Sie das Startdatum ein", "Startdatum definieren","20100101")
+
+if (startDate = nil) then
+  return nil
+elseif (startDate.IsNumber.Not) then
+  MsgBox.Warning("Ungueltige Eingabe","Abbruch")
+  return nil
+end
+
+startDate = startDate.AsNumber
+startDate = startDate.AsDate
+
+if (startDate.AsString = "nil") then
+  MsgBox.Warning("Ungueltige Eingabe","Abbruch")
+  return nil
+end
+
+endDate = MsgBox.Input("Geben Sie das Enddatum ein", "Enddatum definieren","20100131")
+
+if (endDate = nil) then
+  return nil
+elseif (endDate.IsNumber.Not) then
+  MsgBox.Warning("Ungueltige Eingabe","Abbruch")
+  return nil
+end
+
+endDate = endDate.AsNumber
+endDate = endDate.AsDate
+
+if (endDate.AsString = "nil") then
+  MsgBox.Warning("Ungueltige Eingabe","Abbruch")
+  return nil
+end
+
+'# Berechnung durchfuehren
+'# gibt es mehr Datumswerte als Zeilen in der Tabelle
+'# oder in der Selektion, wird die Berechnung gestoppt
+
+theSet = theVTab
+theSelected = theVTab.GetSelection
+
+dayInterval = startDate .. endDate
+dayInterval.SetIncrement(1.AsDays)
+dayList = {}
+
+for each oneDay in dayInterval
+  dayList.Add(oneDay.Clone)
+end
+
+if (theVTab.GetSelection.Count <> 0) then
+  zeile = 0
+  for each rec in theSelected
+    if (zeile+1 > dayList.Count) then
+      exit
+    else
+      theVTab.SetValue(theField,rec,dayList.Get(zeile))
+    end
+  zeile = zeile + 1
+  end
+else
+  for each rec in theSet
+    if (rec+1 > dayList.Count) then
+      exit
+    else
+      theVTab.SetValue(theField,rec,dayList.Get(rec))
+    end
+  end
+end
+
+'# Anzeige aktualisieren
+
+theVTab.UpdateSelection
+
+'# Editsession beenden, wenn zu Beginn nicht gestartet
+
+if (theEditstatus = 0) then
+  theVTab.SetEditable(false)
+end
+

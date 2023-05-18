@@ -1,0 +1,94 @@
+'########################################################
+'#
+'# Filename:     TableTools_DMS2DD.ave
+'# Author:       Adrian Boehlen
+'# Date:         02.01.2014
+'# Version:      0.1
+'# Based on:     Theme.ConvertDMStoDD
+'# 
+'# Purpose:      Converts DegreesMinutesSeconds
+'#               values to DecimalDegrees
+'#
+'########################################################
+
+' Get the list of tables in the project and let the user pick one
+tabList = {}
+for each i in av.GetProject.GetDocs
+  if (i.Is(Table)) then
+    tabList.Add(i)
+  end 
+end
+
+' Have the user pick the table to convert
+tb = MsgBox.ChoiceAsString(tabList,
+  "Choose the table which contains the values to convert:",
+  "Convert DMS values to DD")
+if (tb = Nil) then
+  return ""
+end
+tbv = tb.GetVTab
+
+' Have the user pick the field with the DMS values
+f = MsgBox.ChoiceAsString(tbv.GetFields,
+  "Choose the field to convert from DMS to DD",
+  "Select field")
+if (f = Nil) then
+  return ""
+end
+
+newFieldName = MsgBox.Input("Enter a name for the new field (up to 8 characters):",
+  "Convert DMS values to DD","DD-X")
+if (newFieldName = Nil) then
+  return ""
+end
+
+' Make sure you can write to the table, and that the field doesn't already exist
+if (tbv.CanEdit.Not) then
+  MsgBox.Info("Cannot edit the table.","Convert DMS values to DD")
+  return ""
+end
+if (tbv.FindField(newFieldName).Is(Field)) then
+  MsgBox.Info("A field with name"++newFieldName.asString++
+    "already exists.","Convert DMS values to DD")
+  return ""
+end
+
+' If we can get this far, we can add the new field
+tbv.SetEditable(true)
+newf = Field.Make(newFieldName,#FIELD_DECIMAL,12,6)
+tbv.AddFields({newf})
+
+' Convert DMS to DD
+for each r in tbv
+  v = tbv.ReturnValueString(f, r)
+  ' split the string into 3 parts: D M S
+  it = v.AsTokens(":")
+  if (it.Count <> 3) then
+    MsgBox.Info("Values in field"++f.asString++
+      "appear to be in the incorrect format. Need DDD MM SS.",
+      "Convert DMS to DD")
+    tbv.RemoveFields({newf})  
+    tbv.SetEditable(false)
+    return ""
+  end
+  
+  ' Do the conversion
+  ' degrees = degrees
+  d  = it.Get(0)
+  ' minutes/60
+  m  = ((it.Get(1).asNumber) / 60)
+  ' seconds/3600
+  s  = ((it.Get(2).asNumber) / 3600)
+  ms = (m + s)
+  if (ms <> 0) then
+      ms.SetFormat("dd.dddd")
+      ms = ms.asString.asTokens(".").Get(1)
+   end
+  dms = (d + "." + ms.asString).asNumber
+  dms.SetFormat("dd.dddd")
+  tbv.SetValueNumber(newf,r,dms)
+end
+
+' Stop editing the table
+tbv.SetEditable(false)
+

@@ -1,0 +1,33 @@
+'#########################################################################
+'#
+'# Filename:     Ext_Inst.ave
+'# Author:       Adrian Boehlen
+'# Date:         03.11.2022
+'# Version:      1.0
+'#
+'# Purpose:      installiert die Extension 
+'#
+'#########################################################################
+
+
+if (av.GetProject = nil) then
+  return nil
+end
+
+Sack=self
+
+Schaltflaeche=Sack.get(0)
+tableGUI = av.GetProject.FindGUI( "Table" )
+if (tableGUI <> nil) then
+    'prüfen, ob die Schaltfläche schon existiert
+    if(tableGUI.GetButtonBar.findbyscript(Schaltflaeche.getclick)=nil)then
+      'Schaltfläche an der 2. Stelle einfügen
+      tableGUI.GetButtonBar.Add( Schaltflaeche, 2)
+    end
+end
+
+av.getproject.Adddialog( Sack.get(1)) '# 1. Dialog hinzufuegen
+
+
+
+

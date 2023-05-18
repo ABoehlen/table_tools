@@ -1,0 +1,42 @@
+'#########################################################################
+'#
+'# Filename:     Ext_Make.ave
+'# Author:       Adrian Boehlen
+'# Date:         27.11.2022
+'# Version:      1.0
+'#
+'# Purpose:      erstellt die Extension
+'#               Zum Erstellen der Extension NUR dieses Script ausfuehren
+'#
+'#########################################################################
+
+
+TableTools = Extension.Make("$AVHOME\projects\table_tools\TableTools.avx".AsFileName,
+"TableTools",av.FindScript("Ext_inst"),av.FindScript("Ext_unin"), {"$AVBIN\avdlog.dll".AsFileName})
+
+TableTools.SetExtVersion(1)
+
+'# Beschreibung (Version jeweils anpassen)
+TableTools.SetAbout("TableTools Toolbar (v1.5) ")'Beschreibung
+TableTools.SetUnloadScript(av.FindScript("ext_unload"))
+
+'# Schaltflaeche und Dialoge hinzufuegen
+Schaltflaeche=( av.FindGUI( "Table").GetButtonBar.findbyscript("TableTools.start"))  
+TableToolsDialog =av.FindDialog("TableTools")
+TableTools.Add( Schaltflaeche)   'Schaltfläche hinzufügen
+TableTools.Add(TableToolsDialog)
+
+for each aDoc in av.GetProject.GetDocs
+  if (aDoc.Is(SEd)) then
+    if (aDoc.GetName.Contains("TableTools.")) then
+      if (aDoc.IsCompiled.Not) then
+        aDoc.Compile
+      end
+      TableTools.Add(av.FindScript(aDoc.GetName))
+    end
+  end
+end
+
+TableTools.Commit
+
+

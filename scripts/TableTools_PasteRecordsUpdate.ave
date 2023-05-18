@@ -1,0 +1,10 @@
+' Name: TableTools_PasteRecordsUpdate.ave
+theVari = "theCVals"
+
+theTestScript = Script.Make("return _"+theVari)
+if (theTestScript.HasError) then
+  _theCVals = NIL
+end
+
+SELF.SetEnabled((_theCVals <> NIL) and (_theCVals.count > 0))
+

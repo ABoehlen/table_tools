@@ -1,0 +1,320 @@
+'#####################################################################
+'#
+'# Filename:     TableTools_CalculateTable.ave
+'# Author:       Adrian Boehlen
+'# Date:         28.05.2017
+'# Version:      1.0
+'#
+'# Purpose:      ermoeglicht Berechnungen in einer Tabelle.
+'#               Dazu muss die Expression in der zweiten Zeile
+'#               einer Spalte des Typs "String" stehen
+'#               Werden benutzerdefinierte Variablen benoetigt,
+'#               sind diese in der ersten Zeile zu initialisieren.
+'#
+'#               Sind Zeilen selektiert, wird die Berechnung
+'#               nur in den selektierten Zeilen durchgefuehrt,
+'#               ansonsten in allen
+'#
+'#               Existiert ein Feld namens "Type" kann dort Avenue-
+'#               Code an beliebiger Stelle eingesetzt werden. Dazu
+'#               muss die betreffende Zeile mit "Code" gekennzeichnet
+'#               werden. Das Resultat dieser Berechnung wird in die
+'#               Zeile geschrieben, die mit "Res" gekennzeichnet ist.
+'#
+'#               Die erste und zweite Zeile werden durch
+'#               die Berechnung nicht beeinflusst
+'#
+'#               Wird das Tool mit gedrueckter Shift-Taste aufgerufen,
+'#               werden bestehende Eintraege im betreffenden Feld
+'#               geloescht. Dies betrifft nicht die Zeilen 1 und 2
+'#               und - falls Zeilensetting genutzt - Zeilen der
+'#               Definition "Code" im Feld "Type".
+'#
+'#####################################################################
+
+'# die Tabelle muss aktiv und im Edit-Modus sein
+
+_theTable = av.GetActiveDoc
+
+if (_theTable.Is(table).Not) then
+  MsgBox.Warning("Start this script from an active Table.","")
+  return nil
+end
+
+_theVTab = _theTable.GetVTab
+_theFields = _theVTab.GetFields
+
+if (_theVTab.CanEdit.Not) then
+  MsgBox.Warning("Die Tabelle kann nicht bearbeitet werden","Abbruch")
+  return nil
+end
+
+if (_theVTab.IsEditable.Not) then
+  _theVTab.StartEditingWithRecovery
+  theEditstatus = 0
+else
+  theEditstatus = 1
+end
+
+'# es muss ein Feld aktiv sein
+
+if (_theTable.GetActiveField = nil) then
+  MsgBox.Warning("Es ist kein Feld aktiv","Abbruch")
+  return nil
+end
+
+'# wenn Shift gedrueckt ist, sollen alle Dateneintraege geloescht werden
+
+if (System.IsShiftKeyDown) then
+  for each rec in _theVTab
+    '# Variablendeklaration und Spaltensetting ueberspringen
+    if (rec > 1) then
+      for each feld in _theFields
+        '# Zeilensetting ueberspringen
+        if (feld.AsString = "Type") then
+          if (_theVTab.ReturnValue(feld, rec).AsString = "Code") then
+            continue
+          else
+            _theVTab.SetValue(_theTable.GetActiveField, rec, "")
+            _theVTab.UpdateSelection
+          end
+        end
+      end
+    end
+  end
+  return nil
+end
+
+'# diverse Variablen initialisieren
+
+_theField = _theTable.GetActiveField
+_theFieldName = _theField.GetName
+_a = 1    '# Standardmaessige Anzahl Durchgaenge
+_d = 3    '# Defaultwert fuer Anzahl Nachkommastellen
+_r = " "  '# Standardvariable, die den kalkulierten Wert des Spaltensettings aufnimmt
+_c = " "  '# Standardvariable, die den kalkulierten Wert des Zeilensettings aufnimmt
+_Type = 0 '# Standardwert fuer Feld "Type". Ist so auch gesetzt, wenn Feld nicht existiert
+
+
+'########################################################################################
+'# globale Variablen in der ersten Zeile lesen, in "theVars" speichern und initialisieren
+
+for each rec in _theVTab
+  if (rec = 0) then
+    theVars = _theVTab.ReturnValue(_theField, rec)
+    if (theVars.AsString.Contains("_")) then
+    
+      '# temporaeres Script mit Variablendeklaration aufbauen, ausfuehren, und wieder loeschen
+      
+      theSEd = SEd.MakeWithGUI(Av.GetProject.GetSelectedGUI.GetName)
+      theSEd.SetSource(theVars.AsString)
+      theSEd.Compile
+      if (theSEd.IsCompiled.Not) then
+        MsgBox.Error("fehlerhafte Anweisung Variablendeklaration","Abbruch")
+        Av.GetProject.RemoveDoc(theSEd)
+        return nil
+      end
+      Av.Run(theSEd.AsString,"")     
+      Av.GetProject.RemoveDoc(theSEd)
+    end
+  end
+end
+
+'# Anzahl Nachkommastellen uebersetzen
+
+if (_d = 0) then
+  _d = "d"
+elseif (_d = 1) then
+  _d = "d.d"
+elseif (_d = 2) then
+  _d = "d.dd"
+elseif (_d = 3) then
+  _d = "d.ddd"
+elseif (_d = 4) then
+  _d = "d.dddd"
+elseif (_d = 5) then
+  _d = "d.ddddd"
+elseif (_d = 6) then
+  _d = "d.dddddd"
+elseif (_d = 7) then
+  _d = "d.ddddddd"
+elseif (_d = 8) then
+  _d = "d.dddddddd"
+elseif (_d = 9) then
+  _d = "d.ddddddddd"
+elseif (_d = 10) then
+  _d = "d.dddddddddd"
+elseif (_d = 11) then
+  _d = "d.ddddddddddd"
+elseif (_d = 12) then
+  _d = "d.dddddddddddd"
+elseif (_d = 13) then
+  _d = "d.ddddddddddddd"
+elseif (_d = 14) then
+  _d = "d.dddddddddddddd"
+elseif (_d = 15) then
+  _d = "d.ddddddddddddddd"
+elseif (_d = 16) then
+  _d = "d.dddddddddddddddd"
+elseif (_d = 17) then
+  _d = "d.ddddddddddddddddd"
+elseif (_d = 18) then
+  _d = "d.dddddddddddddddddd"
+elseif (_d = 19) then
+  _d = "d.ddddddddddddddddddd"
+elseif (_d = 20) then
+  _d = "d.dddddddddddddddddddd"
+else
+  MsgBox.Error("Anzahl Nachkommastellen nicht korrekt","Abbruch")
+  return nil
+end
+
+'# Expression in der zweiten Zeile lesen und in "_theExpr" speichern
+'# bei einer numerischen Expression muss das Zahlenformat definiert werden
+
+for each rec in _theVTab
+  if (rec = 1) then
+    if (_theVTab.ReturnValue(_theField, rec).AsString.Contains("AsString")) then
+      'numberExpr = 0
+      _theExpr = _theVTab.ReturnValue(_theField, rec)
+    else
+      'numberExpr = 1
+      _theRec = rec    '# damit als globale Variable definiert
+      _theExpr = _theVTab.ReturnValue(_theField, _theRec)
+      _theExpr = _theExpr + 10.AsChar + "if (_r.AsString.IsNumber) then"
+      _theExpr = _theExpr + 10.AsChar + "_r.SetFormat (""" + _d.AsString + """)"
+      _theExpr = _theExpr + 10.AsChar + "end"
+      _theExpr = _theExpr + 10.AsChar + "_theVTab.SetValue(_theField,_theRec,_r.AsString)"
+    end
+  end
+end
+
+'# pruefen, ob Zeilen selektiert sind oder nicht
+
+theSelected = _theVTab.GetSelection
+
+if (theSelected.Count = 0) then
+  wasSelected = 0
+  theLoop = _theVTab
+else
+  wasSelected = 1
+  theLoop = theSelected
+end
+
+'########################################################################################
+'# Berechnungsdurchgaenge starten und Zaehlervariable setzen
+
+for each z in 1.._a
+  _z = z '# damit als globale Variable im temporaeren Script verfuegbar
+
+  for each rec in theLoop
+    if (rec > 1) then    
+      _theRec = rec     '# damit als globale Variable im temporaeren Script verfuegbar
+      _f = _theRec + 1  '# damit als Zeilenvariable von Expression aus aufrufbar, beginnend mit 1
+      theSelected.Set(rec)
+      _theVTab.SetSelection(theSelected)
+      _theVTab.UpdateSelection
+    
+      '# Inhalt der uebrigen Felder als Variable uebernehmen
+      '# falls das Feld leer ist, der Variable als Wert "0" zuweisen
+      '# falls das Feld keine Zahl ist, den Wert in Anfuehrungszeichen setzen
+      '# falls das Feld eine Zahl ist, sicherstellen, dass es eine Number ist und das Zahlenformat setzen
+    
+      _theFldCont = ""
+      for each theActFld in _theFields
+        _theFldCont = _theFldCont + "_" + theActFld.GetName.AsString + " = "
+        if (_theVTab.ReturnValue(theActFld, rec ).AsString = "") then
+          _theFldCont = _theFldCont + "0" + 10.AsChar
+        elseif (_theVTab.ReturnValue(theActFld, rec ).AsString.IsNumber.Not) then
+          _theFldCont = _theFldCont + """" + _theVTab.ReturnValue(theActFld, rec ).AsString + """" + 10.AsChar
+        else
+          _theNumValue = _theVTab.ReturnValue(theActFld, rec )
+          _theNumValue = _theNumValue.AsString
+          _theNumValue = _theNumValue.AsNumber
+          _theNumValue.SetFormat("" + _d + "")
+          _theFldCont = _theFldCont + _theNumValue.AsString + 10.AsChar
+        end
+      end
+    
+      '# temporaere Scripts aufbauen, ausfuehren, und wieder loeschen
+      '# im Falle eines Fehlers Abbruch mit Ausgabe des fehlerhaften Scripts
+      
+      '# 1. Script: Feldvariablen erzeugen
+      script1 = SEd.MakeWithGUI(Av.GetProject.GetSelectedGUI.GetName)
+      script1.SetSource(_theFldCont.AsString)
+      script1.Compile
+      if (script1.IsCompiled.Not) then
+        MsgBox.Error("fehlerhafte Anweisung Script 1","Abbruch")
+        MsgBox.Report(_theFldCont.AsString,"Calculation Script")
+        Av.GetProject.RemoveDoc(script1)
+        return nil
+      end
+      Av.Run(script1.AsString,"")
+      'MsgBox.Report(_theFldCont.AsString,"Calculation Script") '# nur aktivieren zur Komtrolle 
+      Av.GetProject.RemoveDoc(script1)     
+      
+      '# normale Datenzeilen
+      if (_Type = 0) then
+        '# 2. Script: Spaltensetting
+        script2 = SEd.MakeWithGUI(Av.GetProject.GetSelectedGUI.GetName)
+        script2.SetSource(_theExpr.AsString)
+        script2.Compile
+        if (script2.IsCompiled.Not) then
+          MsgBox.Error("fehlerhafte Anweisung Script 2","Abbruch")
+          MsgBox.Report(_theExpr.AsString,"Calculation Script")
+          Av.GetProject.RemoveDoc(script2)
+          return nil
+        end
+        Av.Run(script2.AsString,"")
+        'MsgBox.Report(_theExpr.AsString,"Calculation Script") '# nur aktivieren zur Komtrolle 
+        Av.GetProject.RemoveDoc(script2)
+      
+      '# Code fuer Zeilensetting
+      elseif (_Type = "Code") then
+        '# Zeilensetting lesen
+        'MsgBox.Info(_theVTab.ReturnValue(_theTable.GetActiveField, rec).AsString,"")
+        _theCode = _theVTab.ReturnValue(_theTable.GetActiveField, rec).AsString
+        _theCode = _theCode + 10.AsChar + "if (_c.AsString.IsNumber) then"
+        _theCode = _theCode + 10.AsChar + "_c.SetFormat (""" + _d.AsString + """)"
+        _theCode = _theCode + 10.AsChar + "end"
+        _theCode = _theCode + 10.AsChar + "_theVTab.SetValue(_theField,_theRec,_c.AsString)"
+      
+      '# Resultat fuer Zeilensetting
+      elseif (_Type = "Res") then
+        '# 3. Script: Zeilensetting
+        script3 = SEd.MakeWithGUI(Av.GetProject.GetSelectedGUI.GetName)
+        script3.SetSource(_theCode.AsString)
+        script3.Compile
+        if (script3.IsCompiled.Not) then
+          MsgBox.Error("fehlerhafte Anweisung Script 3","Abbruch")
+          MsgBox.Report(_theExpr.AsString,"Calculation Script")
+          Av.GetProject.RemoveDoc(script3)
+          return nil
+        end
+        Av.Run(script3.AsString,"")
+        'MsgBox.Report(_theCode.AsString,"Calculation Script") '# nur aktivieren zur Komtrolle 
+        Av.GetProject.RemoveDoc(script3)        
+      end
+    end
+  end
+  
+  '# Anzeige aktualisieren
+
+  _theVTab.UpdateSelection
+
+  '# Selektion aufheben, wenn zuvor nichts selektiert
+
+  if (wasSelected = 0) then
+    theSelected.ClearAll
+    _theVTab.UpdateSelection
+  end
+end
+
+'# Editsession beenden, wenn zu Beginn nicht gestartet
+
+if (theEditstatus = 0) then
+  _theVTab.SetEditable(false)
+end
+
+'# alle globalen Variablen loeschen
+Av.ClearGlobals

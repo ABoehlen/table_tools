@@ -1,0 +1,111 @@
+'########################################################
+'#
+'# Filename:     TableTools_Index.ave
+'# Author:       Adrian Boehlen
+'# Date:         10.06.2014
+'# Version:      0.12
+'#
+'# Purpose:      Berechnet einen Index, ausgehend von
+'#               einem zu definierenden Initialwert mit
+'#               einer zu definierenden Schrittweite
+'#
+'#               ist eine Selektion vorhanden, wird die 
+'#               Berechnung nur auf der Selektion durch-
+'#               gefuehrt
+'#
+'########################################################
+
+'# die Tabelle muss aktiv und im Edit-Modus sein
+
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Warning("Start this script from an active Table.","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+
+if (theVTab.CanEdit.Not) then
+  MsgBox.Warning("Die Tabelle kann nicht bearbeitet werden","Abbruch")
+  return nil
+end
+
+if (theVTab.IsEditable.Not) then
+  theVTab.StartEditingWithRecovery
+  theEditstatus = 0
+else
+  theEditstatus = 1
+end
+
+'# Es muss ein Feld aktiv sein
+
+if (theTable.GetActiveField = nil) then
+  MsgBox.Warning("Es ist kein Feld aktiv","Abbruch")
+  return nil
+end
+
+theField = theTable.GetActiveField
+thePrecision = "d.dddddddddd"
+theFieldPrecision = theField.GetPrecision
+Script.The.SetNumberFormat( thePrecision.Left( theFieldPrecision + 2 ) )
+
+'# Initialwert und Schrittweite definieren
+
+theSum = MsgBox.Input("Geben Sie den Initialwert ein", "Initialwert definieren",1.AsString)
+
+if (theSum = nil) then
+  return nil
+elseif (theSum.IsNumber.Not) then
+  MsgBox.Warning("Ungueltige Eingabe","Abbruch")
+  return nil
+end
+
+theInterval = MsgBox.Input("Geben Sie die Schrittweite ein", "Schrittweite definieren",1.AsString)
+
+if (theInterval = nil) then
+  return nil
+elseif (theInterval.IsNumber.Not) then
+  MsgBox.Warning("Ungueltige Eingabe","Abbruch")
+  return nil
+elseif (theInterval.AsNumber = 0) then
+  MsgBox.Warning("Schrittweite darf nicht 0 sein","Abbruch")
+  return nil
+end
+
+theSum = theSum.AsNumber
+theInterval = theInterval.AsNumber
+theSet = theVTab
+theSelected = theVTab.GetSelection
+
+'# Berechnung durchfuehren
+
+if (theVTab.GetSelection.Count <> 0) then
+  for each rec in theSelected
+    if (theField.getType.AsString = "FIELD_CHAR") then
+      theVTab.SetValue(theField,rec,theSum.AsString)
+    else
+      theVTab.SetValue(theField,rec,theSum)
+    end
+    theSum = theInterval + theSum
+  end
+else
+  for each rec in theSet
+    if (theField.getType.AsString = "FIELD_CHAR") then
+      theVTab.SetValue(theField,rec,theSum.AsString)
+    else
+      theVTab.SetValue(theField,rec,theSum)
+    end
+    theSum = theInterval + theSum
+  end
+end
+
+'# Anzeige aktualisieren
+
+theVTab.UpdateSelection
+
+'# Editsession beenden, wenn zu Beginn nicht gestartet
+
+if (theEditstatus = 0) then
+  theVTab.SetEditable(false)
+end

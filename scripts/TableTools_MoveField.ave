@@ -1,0 +1,133 @@
+
+' NAME: TableTools_MoveField.ave
+' HERKUNFT: Harald 03 / 03
+' REQUIRES: Active Table, Active Field
+' INTEGRATION MTOOLS: Table Button (Label: Move active Field...)
+' HILFE:  Moves the active field to a position behind the field chosen from a ListBox  (s. CTRL Click Info)
+'***************************************************************
+
+' CTRL-KLICK Info (erscheint, wenn das Skript bei gedrueckter Strg- bzw. Ctrl-Taste aufgerufen wird)
+ 
+if (System.IsControlKeyDown) then
+
+  message =
+    " "+nl+
+    
+    "SCRIPTNAME: mm_tableSubstituteString "+nl+nl+
+  
+    "ORIGIN: Harald, 03.2005 "+nl+nl+
+    
+    "Moves the active field to a position behind the field chosen from a ListBox. "+nl+nl+
+    
+    "If the SHIFT key is down or if no field is active or if the Shape field is active you can choose a "+
+    "group of fields from a list and move them together to a position behind the field chosen from a ListBox. "+nl+nl+
+    
+    "All movements are non-permanent. "+nl
+      
+  msgbox.report(message,"INFO: Move Fields...")
+  
+  return nil
+end
+
+' -----------------------------------------------------------------------------------
+' GET TABLE, VTAB AND FIELDLISTS
+
+theTable = av.GetActiveDoc
+if (theTable.is(Table).not) then return NIL end
+theVTab = theTable.GetVTab
+theActiveField = theTable.GetActiveField
+
+theFldList = theVTab.GetFields
+
+' -----------------------------------------------------------------------------------
+' GROUP MOVEMENT IF SHIFT KEY IS DOWN OR NO FIELD OR SHAPE FIELD IS ACTIVE
+
+if ((System.IsShiftKeyDown) or (theActiveField = NIL) or (theActiveField.GetAlias = "Shape")) then
+  
+  theFldAliasGroupList = List.Make
+  
+  theShp = FALSE
+  for each fld in theFldList
+    if (fld.GetAlias <> "Shape") then
+      theFldAliasGroupList.Add(fld.GetAlias)
+    else
+      theShp = TRUE
+    end
+  end
+  if ((theFldAliasGroupList.Count = 0)) then return NIL end
+
+  theFChoices = MsgBox.MultiListAsString(theFldAliasGroupList,"Select all Fields you want to move:", " Move several Fields" )
+  if ((theFChoices = NIL) or (theFChoices.Count = 0)) then return NIL end
+
+  theFldAliasGroupListB = List.Make
+  
+  for each fld in theFldList
+    theFldAliasGroupListB.Add(fld.GetAlias)
+  end
+
+  for each item in theFChoices
+    theDel = theFldAliasGroupListB.FindByValue(item)
+    theFldAliasGroupListB.Remove(theDel)
+  end
+  
+  theLocation = MsgBox.ListAsString(theFldAliasGroupListB, "Select the Field to move the chosen fields behind:"," New Position after...")
+  if ((theLocation = NIL)) then return NIL end
+  
+  theNuPosF = theVTab.FindField(theLocation)
+  
+  theNuPos = theFldList.Find(theNuPosF)
+  
+'  If (theNuPos = 0) then return nil end
+  
+  theCount = 1
+  for each F in theFChoices
+    theFld = theVTab.FindField(F)
+    theNuPos = theFldList.Find(theNuPosF)
+    
+    theFldList.Shuffle (theFld,(theNuPos + theCount))
+    theCount = theCount + 1
+'    theVTab.Refresh 
+  end
+  
+  theVTab.Refresh 
+  return NIL 
+end
+
+' -----------------------------------------------------------------------------------
+' MOVE ACTIVE FIELD IF THERE IS ONE APART OF THE SHAPE FIELD
+
+theFldAliasList = List.Make
+
+for each fld in theFldList
+  if (fld <> theActiveField) then
+    theFldAliasList.Add(fld.GetAlias)
+  end
+end
+
+theFldCount = theFldList.Count
+theActFldSt = theTable.GetActiveField.AsString
+
+theCurrNum = theFldList.Find(theActiveField)
+
+theNuPosFS = MsgBox.ListAsString(theFldAliasList,"Select the Field to move the Active Field behind  (to move several fields click the button while Shift key is down):"," New Position of  '"+theActiveField.GetAlias+"'  after...")
+if (theNuPosFS = NIL) then return NIL end
+
+'theNuNum = MsgBox.Input("Enter a new position number between 1 and "+(theFldList.Count+1).AsString," Current Position = "+(theCurrNum+1).AsString,"2")
+'if (((theNuNum.IsNumber).not) or (theNuNum.AsNumber > (theFldList.count+1)) or (theNuNum.AsNumber < 1)) then 
+'  av.ShowMsg("llll llll llll llll llll   llll llll llll    Input Error...")
+'  return NIL 
+'end
+
+theNuPosF = theVTab.FindField(theNuPosFS)
+theNuPos = theFldList.Find(theNuPosF)
+
+theFldList.Shuffle (theActiveField,(theNuPos)+1)
+theVTab.Refresh 
+
+theReActField = theVTab.FindField(theActFldSt)
+theTable.SetActiveField (theReActField)
+theVTab.Refresh 
+
+' -----------------------------------------------------------------------------------
+
+

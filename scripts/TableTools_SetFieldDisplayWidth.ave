@@ -1,0 +1,139 @@
+'  TableTools_SetFieldDisplayWidth.ave 
+'  - Click = Increase by 20% -- 
+'  - Shift & Click = Decrease by 20% -- 
+'  - Control & Click = Automatic Set to Data Width
+'  
+'===========================================================
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Warning("Start this script from an active Table.","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+if (theVTab.IsLinked = true) then
+  MsgBox.Warning( "Sorry - don't work on linked tables - Indexing Problems", " " )
+  return nil
+end
+if (theVTab.IsBase = False) then
+  MsgBox.Warning( "Sorry - don't work on joined tables - Indexing Problems", " " )
+  return nil
+end
+
+
+if (System.IsControlKeyDown) then
+  FD = "d.ddd"
+  newgt = 1
+  newgt.SetFormat(FD)
+
+  theFieldlist = theVTab.GetFields
+  theRecs = theVTab
+  theCount = theRecs.GetNumRecords
+  av.ShowStopButton 
+  pg = 0
+  for each F in theFieldlist
+    if (F.AsString = "Shape") then
+      continue
+    end
+    Ftype = F.IsTypeNumber
+    Falias = F.GetAlias  
+    Fwidth = F.GetWidth
+    progress = (pg/theFieldlist.count) * 100
+    doMore = av.SetStatus( progress )
+    if (not doMore) then
+      return nil
+    end
+    A = Falias.Count
+    W = 0
+    ck = 0
+    for each theRec in theRecs
+      theStr = theVTab.ReturnValue(F, theRec)
+      if (Ftype = True) then
+        theStr.SetFormat(FD)
+        theStrB = theStr.AsString
+      else
+        pg.SetFormat("")
+        theStrB = theStr.AsString
+      end
+         
+      theStrC = theStrB.count
+      if (theStrC > W) then
+        W = theStrC
+      end
+      if (ck > 1500) then
+        break
+      end
+      ck = ck + 1
+    end
+
+    if (A > W) then
+      x = A * 8.5
+    else
+      x = W * 7.5
+    end
+    F.SetPixelWidth (x)
+    theTest = theVTab.Refresh 
+    pg = pg + 1
+  end
+
+  av.ClearStatus  
+  pg.SetFormat("")
+  return nil
+end
+
+if (System.IsShiftKeyDown) then
+  N = -0.20
+  theFieldlist = theVTab.GetFields
+  theRecs = theVTab
+  theCount = theRecs.GetNumRecords
+  av.ShowStopButton 
+  pg = 0
+  for each F in theFieldlist
+    if (F.AsString = "Shape") then
+      continue
+    end
+    W = F.GetPixelWidth
+    x = W + (W*N)
+    F.SetPixelWidth (x)
+    progress = (pg/theFieldlist.count) * 100
+    doMore = av.SetStatus( progress )
+    if (not doMore) then
+      return nil
+    end
+    pg = pg + 1
+  end
+  theTest = theVTab.Refresh
+  av.ClearStatus  
+  pg.SetFormat("")
+
+  return nil
+end
+
+N = 0.20
+theFieldlist = theVTab.GetFields
+theRecs = theVTab
+theCount = theRecs.GetNumRecords
+av.ShowStopButton 
+pg = 0
+for each F in theFieldlist
+  if (F.AsString = "Shape") then
+    continue
+  end
+  W = F.GetPixelWidth
+  x = W + (W*N)
+  F.SetPixelWidth (x)
+  progress = (pg/theFieldlist.count) * 100
+  doMore = av.SetStatus( progress )
+  if (not doMore) then
+    return nil
+  end
+  pg = pg + 1
+end
+
+theTest = theVTab.Refresh
+av.ClearStatus  
+pg.SetFormat("")
+return nil 
+
+

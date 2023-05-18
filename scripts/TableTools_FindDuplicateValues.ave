@@ -1,0 +1,213 @@
+'Name: TableTools_FindDuplicateValues.ave
+
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Warning("Start this script from an active Table.","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+Number.SetDefFormat("d")
+
+'***** ADVISE TO STOP EDITING ESP. IF RECORDS HAVE BEEN DELETED *****
+doSave = ""
+if (theVTab.IsBeingEditedWithRecovery) then
+  doSave = MsgBox.YesNoCancel("The "+theVTab.GetName+" is currently being edited...Save Edits?"++
+                              "  To proceed in edit mode with limited options, click 'Cancel'.", 
+                              "Stop Editing", True)
+  if (doSave = nil) then
+    'return nil
+  else
+    if (theVTab.StopEditingWithRecovery(doSave).Not) then
+      MsgBox.Info("Unable to Save Edits, please use the 'Save Edits As' option", "")
+      return nil
+    end
+  end
+elseif (theVTab.IsEditable) then
+  theVTab.SetEditable(False)
+end
+theVTab.Refresh
+
+proceed = (theVTab.Is(FTab) and (doSave = nil)).Not
+
+'***** GET USER SELECTED FIELDS *****
+fldList = theVTab.GetFields
+userFldList = MsgBox.MultiList(fldList, 
+                               "Select one or more fields to query duplicate value sets",
+                               "Find Duplicates")
+if ((userFldList = nil) or userFldList.IsEmpty) then return nil end
+
+'***** SET ASIDE CURRENT SELECTION IF LATER, USER WANTS TO RESTORE *****
+lastBitmap = theVTab.GetSelection.Clone
+
+'***** MAKE NECESSARY LISTS *****
+theCount = userFldList.Count
+recCnt = theVtab.GetNumRecords
+dupDic = Dictionary.Make(recCnt)
+
+'***** MAKE STRING LIST OF VALUES AND COMPARE TO FILL DUP BITMAP AND DICTIONARY *****
+av.ShowStopButton
+i = 0
+
+dupFound = False
+for each rec in theVTab
+
+  '*** status bar update ***
+  i = i +1
+  if (av.SetStatus((i/recCnt) * 100).Not) then
+    if (proceed) then
+      theVTab.SetSelection(lastBitmap)
+      theVTab.UpdateSelection
+    end
+    dupDic = nil
+    dupBitmap = nil
+    av.PurgeObjects
+    return nil
+  end
+  
+  '*** make value set for record ***
+  recValueList = {}
+  for each f in userFldList
+    recValueList.Add(theVTab.ReturnValue(f, rec))
+  end
+  
+  '*** if only one field is selected and if string null, skip ***
+  '''''if ((userFldList.Count = 1) and (recValueList.Get(0) = "")) then continue end
+  
+  '*** make query string and value string ***
+  theSelection = ""
+  valueStrg = ""
+  for each n in 0..(theCount-1)
+    v = recValueList.Get(n)
+    theFld = userFldList.Get(n)
+    fldName = theFld.GetAlias
+    
+    if (v.Is(SHAPE)) then
+      theSelection = theSelection ++
+                     "((["+fldName+"].ReturnCenter.GetX.SetFormatPrecision(10).AsString = " +
+                                    v.ReturnCenter.GetX.SetFormatPrecision(10).AsString.Quote+") AND (["+
+                           fldName+"].ReturnCenter.GetY.SetFormatPrecision(10).AsString = " +
+                                    v.ReturnCenter.GetY.SetFormatPrecision(10).AsString.Quote+"))"
+      valueStrg = valueStrg ++ "Shape Center:" ++ v.ReturnCenter.GetX.SetFormatPrecision(4).AsString ++
+                                                  v.ReturnCenter.GetY.SetFormatPrecision(4).AsString
+    
+    elseif (v.Is(BOOLEAN)) then
+      theSelection = theSelection ++ "(["+fldName+"] = " + v.AsString+")"
+      valueStrg = valueStrg ++ v.AsString
+      
+    elseif (v.Is(DATE)) then
+      theSelection = theSelection ++ "(["+fldName+"].SetFormat("+("yyyyMMddhhhhms.s").Quote+") = "+
+                     "Date.Make("+v.SetFormat("yyyyMMddhhhhms.s").AsString.Quote+","+("yyyyMMddhhhhms.s").Quote+"))"
+      valueStrg = valueStrg ++ v.SetFormat("yyyyMMdd hhhh:m:s.s").AsString
+      
+    elseif (v.Is(NUMBER)) then
+      theSelection = theSelection++ "(["+fldName+"] = " + v.SetFormatPrecision(theFld.GetPrecision).AsString + ")"
+      valueStrg = valueStrg ++ v.SetFormatPrecision(theFld.GetPrecision).AsString
+      
+    elseif (v.Is(STRING)) then
+      theSelection = theSelection ++ "(["+fldName+"] = " + v.Quote+")"
+      valueStrg = valueStrg ++ v.Quote
+      
+    else
+      valueStrg = valueStrg ++ v.AsString
+    end
+    if (n <> (theCount-1)) then
+      theSelection = theSelection ++ "AND"
+      valueStrg = valueStrg + ", "
+    end
+  end
+  valueStrg = valueStrg.Trim
+  
+  '*** try to add to dictionary, if true, adds 1st rec, count of one, and query string ***
+  '*** if not, 1st rec and query string stays same, but add one to the count ***
+  
+  if (Not (dupDic.Add(valueStrg, {rec.Clone, {1}, theSelection}))) then
+    dupDic.Get(valueStrg).Get(1).Add(1)
+    dupFound = True
+  end
+end
+
+'***** DISPLAY DUPLICATE VALUE SETS AND COUNT *****
+if (dupFound) then
+  dStrgList = {}
+  uniqueStrg = ""
+  keyList = dupDic.ReturnKeys
+  keyList.Sort(True)
+  
+  dupBitmap = Bitmap.Make(recCnt)
+  uniqueBitmap = Bitmap.Make(recCnt)
+  for each k in keyList
+    d = dupDic.Get(k)
+    uniqueStrg = uniqueStrg + k + nl
+    if (proceed) then
+      uniqueBitmap.Set(d.Get(0))
+    end
+    if (d.Get(1).Count > 1) then
+      if (proceed) then
+        dupBitmap.Set(d.Get(0))
+      end
+      dStrgList.Add(k ++ "  (" + d.Get(1).Count.AsString ++ "records)")
+    end
+  end
+  
+  '***** UPDATE VTAB *****
+  if (proceed) then
+    theVTab.SetSelection(dupBitmap)
+    theVTab.UpdateSelection
+    
+    dStrgList.Insert("REPORT/SELECT UNIQUE VALUES")
+    dStrgList.Insert("APPLY PREVIOUS SELECTION")
+
+    selList = MsgBox.MultiListAsString(dStrgList, "The 1st of each duplicate set has been selected.  "+
+              "Choose to revert to previous selection, select value set(s), or click 'Cancel' to keep "+
+              "current selection.", "Duplicate Search Resuts")
+  
+    if ((selList = nil) OR (selList.IsEmpty)) then return nil end
+    if (selList.FindByValue("APPLY PREVIOUS SELECTION") <> -1) then
+      theVTab.SetSelection(lastBitmap)
+      theVTab.UpdateSelection
+    elseif (selList.FindByValue("REPORT/SELECT UNIQUE VALUES") <> -1) then
+      theVTab.SetSelection(uniqueBitmap)
+      theVTab.UpdateSelection
+      uniqueStrg = ""
+      for each k in keyList
+        uniqueStrg = uniqueStrg + k + nl
+      end
+      MsgBox.Report(uniqueStrg, keyList.Count.AsString ++ "Unique Values found.")
+    else
+      theBitmap = Bitmap.Make(recCnt)
+      theBitmap.ClearAll
+      for each s in selList
+        theSelection = dupDic.Get(s.AsTokens("(").Get(0).Trim).Get(2)
+        theVTab.Query(theSelection, theBitmap, #VTAB_SELTYPE_OR)
+      end
+      theVTab.SetSelection(theBitmap)
+      theVTab.UpdateSelection
+    end
+  else
+    msg = ""
+    for each s in dStrgList
+      msg = msg + s + nl
+    end
+    MsgBox.Report(msg, "Duplicate Search Results")
+  end
+else
+  theVTab.SetSelection(lastBitmap)
+  theVTab.UpdateSelection
+  if (fldList.Count = 1) then
+    msg = "No duplicate values were found."
+  else
+    msg = "No duplicate value sets were found."
+  end
+  Msgbox.Info(msg, "Searching for Duplicates")
+end
+
+Number.SetDefFormat("")
+
+dupDic = nil
+dupBitmap = nil
+av.GetProject.SetModified(True)
+
+return nil
+

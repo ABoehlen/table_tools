@@ -1,0 +1,108 @@
+' NAME: TableTools_CopyRecords.ave
+' HERKUNFT: Harald 04 / 03 / 03
+' BRAUCHT: Active Table
+' EINBINDUNG MTOOLS: Table Menue (Label: Copy Record Values)
+' HILFE:  Copies the Values of the selected Records  (s. CTRL-Click Info)
+'***************************************************************
+
+' CTRL-KLICK Info (erscheint, wenn das Skript bei gedrueckter Strg- bzw. Ctrl-Taste aufgerufen wird)
+ 
+if (System.IsControlKeyDown) then
+
+  message =
+    " "+nl+
+    
+    "SCRIPTNAME: mm_tableAttributeCopy "+nl+nl+
+  
+    "ORIGIN: based upon 'Copy Features Between Themes' by Tim Johnson "+nl+nl+
+    
+    "Copies the values of the selected records. "+nl+nl+
+    
+    "Attribute values of the following fields will be missed out: "+nl+nl+
+    
+    "   [Shape], "+nl+
+    "   [ID], "+nl+
+    "   [RecNo], "+nl+
+    "   [Area], "+nl+
+    "   [Perimeter], "+nl+
+    "   [Hectares], "+nl+
+    "   [Length], "+nl+nl+
+    
+    "   [X_Coord], "+nl+
+    "   [Y_Coord], "+nl+
+    "   [Z_Coord], "+nl+nl+
+    
+    "   [X-Coord], "+nl+
+    "   [Y-Coord], "+nl+
+    "   [Z-Coord], "+nl+nl+
+
+    "   [X_Beg], "+nl+
+    "   [Y_Beg], "+nl+
+    "   [Z_Beg], "+nl+nl+
+    
+    "   [X_End], "+nl+
+    "   [Y_End], "+nl+
+    "   [Z_End], "+nl+nl+
+
+    "   [X_Centr], "+nl+
+    "   [Y_Centr] "+nl
+
+  msgbox.report(message,"INFO: Copy Record Values ...")
+  
+  return nil
+end
+
+' -----------------------------------------------------------------------------------
+
+theTable = av.getActiveDoc
+
+if (theTable.is(Table).not) then
+  MsgBox.Info("This is not a Table...","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+
+theTable.StopEditing
+
+theFields = theVTab.getFields
+_theCFlds = List.Make
+
+for each fld in theFields
+  if ((theVTab.IsJoinedField(fld).not) and (fld.GetName <> "Shape")) then
+    _theCFlds.Add(fld.GetAlias)
+  end
+end
+
+_theCVals = List.Make
+
+theBitMap = theVTab.GetSelection
+if (theBitMap.count < 1) then
+   MsgBox.Info("Nothing selected. Select one record at least."," INFO")
+   _theCVals.empty
+   av.ShowMsg("llll llll llll llll llll   llll llll llll    Nothing copied")
+   return NIL
+end
+
+j = 0
+for each rec in theVTab.GetSelection
+  for each item in _theCFlds
+    fld = theVTab.FindField(item)
+    theValue = theVTab.ReturnValue(fld,rec)
+    _theCVals.add(theValue)
+    j = j + 1
+  end
+end
+
+theVS = ""
+if (j <> 1) then
+  theVS = "s"
+end
+
+av.ShowMsg("llll llll llll llll llll   llll llll llll    "+j.AsString++"Value"+theVS+" copied")
+
+
+
+
+
+

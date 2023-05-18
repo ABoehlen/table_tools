@@ -1,0 +1,160 @@
+'############################################################
+'#
+'# Filename:     TableTools_AdvancedSum.ave
+'# Author:       Adrian Boehlen
+'# Date:         29.06.2014
+'# Version:      0.10
+'#
+'# Purpose:      Summiert die Werte selektierter Zeilen
+'#               eines Feldes und schreibt das Ergebnis in
+'#               die zu definierende Zeile
+'#
+'#               Funktioniert in numerischen und Textfeldern
+'#
+'############################################################
+
+'# die Tabelle muss aktiv und im Edit-Modus sein
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Info("Start this script from an active Table.","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+
+if (theVTab.CanEdit.Not) then
+  MsgBox.Warning("Die Tabelle kann nicht bearbeitet werden","Abbruch")
+  return nil
+end
+
+if (theVTab.IsEditable.Not) then
+  theVTab.StartEditingWithRecovery
+  theEditstatus = 0
+else
+  theEditstatus = 1
+end
+
+'# Es muss ein Feld aktiv sein
+if (theTable.GetActiveField = nil) then
+  MsgBox.Warning("Es ist kein Feld aktiv","Abbruch")
+  return nil
+end
+
+theField = theTable.GetActiveField
+
+if ((theField.getType.AsString = "FIELD_DATE") or (theField.getType.AsString = "FIELD_LOGICAL")) then
+  MsgBox.Warning("Der Feldtyp muss ""String"" oder ""Number"" sein","Abbruch")
+  return nil
+end
+
+'# Definieren der Anzahl Nachkommastellen in Textfeldern
+if (theField.getType.AsString = "FIELD_CHAR") then
+  dez = MsgBox.Input("Geben Sie die Anzahl Nachkommastellen ein", "Anzahl Nachkommastellen",3.AsString)
+  if (dez = nil) then
+    return nil  
+  elseif (dez.IsNumber.Not) then
+    MsgBox.Warning("Ungueltige Eingabe","Abbruch")
+    return nil
+  elseif (dez.AsNumber < 0) then
+    MsgBox.Warning("Ungueltige Eingabe","Abbruch")
+    return nil  
+  end
+end
+
+'# Es muessen mindestens zwei Zeilen selektiert sein
+if ( theVTab.GetSelection.Count < 2) then
+  MsgBox.Warning("Zu summierende Zeilen (mindestens 2) muessen selektiert sein","Abbruch")
+  return nil
+end
+
+'# Selektion speichern
+theSelected = theVTab.GetSelection
+theStack = Stack.Make
+theStack.Push (theSelected.Clone)
+
+'# Summe ermitteln
+theSum = 0
+for each rec in theSelected
+  theValue = theVTab.ReturnValueNumber( theField, rec )
+  if ( not ( theValue.IsNull ) ) then
+    theSum = theValue + theSum
+  end
+end
+
+'# Summe in Textfeldern formatieren
+if (theField.getType.AsString = "FIELD_CHAR") then
+  if (dez = "0") then
+    theSum.SetFormat("d")
+  elseif (dez = "1") then
+    theSum.SetFormat("d.d")
+  elseif (dez = "2") then
+    theSum.SetFormat("d.dd")
+  elseif (dez = "3") then
+    theSum.SetFormat("d.ddd")
+  elseif (dez = "4") then
+    theSum.SetFormat("d.dddd")
+  elseif (dez = "5") then
+    theSum.SetFormat("d.ddddd")
+  elseif (dez = "6") then
+    theSum.SetFormat("d.dddddd")
+  elseif (dez = "7") then
+    theSum.SetFormat("d.ddddddd")
+  elseif (dez = "8") then
+    theSum.SetFormat("d.dddddddd")
+  elseif (dez = "9") then
+    theSum.SetFormat("d.ddddddddd")
+  else
+    theSum.SetFormat("d.dddddddddd")
+  end
+end
+
+'# Anzahl Zeilen ermitteln
+theRecords = 0
+for each rec in theVTab
+  theRecords = theRecords + 1
+end
+
+'# Zielfeld definieren
+theTarget = MsgBox.Input("Geben Sie die Nummer des Zielfeldes ein", "Zielfeld definieren",1.AsString)
+
+if ((theTarget = nil) or (theTarget.IsNumber.Not)) then
+  MsgBox.Warning("Zielfeld wurde nicht definiert","Abbruch")
+  return nil
+elseif ((theTarget.AsNumber > theRecords) or (theTarget.AsNumber < 1)) then
+  MsgBox.Warning("Zielfeld existiert nicht","Abbruch")
+  return nil 
+end
+
+theTarget = theTarget.AsNumber - 1
+
+'# vorhandene Selektion aufheben
+theSelected = theVTab.GetSelection
+theSelected.ClearAll
+theVTab.UpdateSelection
+
+'# Selektion durchfuehren
+theSelected.Set(theTarget)
+theVTab.SetSelection(theSelected)
+theVTab.UpdateSelection
+
+'# Summe in Zielfeld schreiben
+for each rec in theSelected
+  if (theField.getType.AsString = "FIELD_CHAR") then
+    theVTab.SetValue(theField,rec,theSum.AsString)
+  else
+    theVTab.SetValue(theField,rec,theSum)
+  end
+end
+
+'# Urspruengliche Selektion wiederherstellen
+theSelected = theStack.Top
+theVTab.SetSelection(theSelected)
+theVTab.UpdateSelection
+theStack.Empty
+
+'# Editsession beenden, wenn zu Beginn nicht gestartet
+if (theEditstatus = 0) then
+  theVTab.SetEditable(false)
+end
+

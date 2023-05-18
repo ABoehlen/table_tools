@@ -1,0 +1,158 @@
+'#################################################################
+'#
+'# Filename:     TableTools_CopyFieldContent.ave
+'# Author:       Adrian Boehlen
+'# Date:         10.06.2014
+'# Version:      0.3
+'#
+'# Purpose:      Kopiert Inhalt eines Feldes in ein bestehendes
+'#               anderes Feld unter Beruecksichtigung des
+'#               jeweiligen Feldtyps.
+'#
+'#               Sind Zeilen selektiert, wird nur der Inhalt
+'#               der selektierten Zeilen kopiert, ansonsten
+'#               der Inhalt aller Zeilen
+'#
+'#################################################################
+
+'# die Tabelle muss aktiv und im Edit-Modus sein
+
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Warning("Start this script from an active Table.","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+
+if (theVTab.CanEdit.Not) then
+  MsgBox.Warning("Die Tabelle kann nicht bearbeitet werden","Abbruch")
+  return nil
+end
+
+if (theVTab.IsEditable.Not) then
+  theVTab.StartEditingWithRecovery
+  theEditstatus = 0
+else
+  theEditstatus = 1
+end
+
+'# Feld auswaehlen, dessen Inhalt kopiert werden soll
+
+lstStrFields = List.Make
+for each theSourceField in theVTab.GetFields
+  if ((theSourceField.AsString <> "Shape") and (theSourceField.IsVisible)) then
+    lstStrFields.Add(theSourceField.GetAlias)
+  end
+end
+
+if (lstStrFields.Count = 0) then
+  MsgBox.Info("Es ist kein Feld vorhanden, oder alle Felder sind ''invisible''. ", "Abbruch")
+  return nil
+end
+
+theSourceField = MsgBox.ListAsString(lstStrFields, "Feld auswaehlen, dessen Inhalt kopiert werden soll :","Quellfeld auswaehlen")
+if ((theSourceField = nil) OR (theSourceField.Count = 0)) then
+  return nil
+end
+
+'# Feld auswaehlen, in welches der kopierte Inhalt eingefuegt werden soll
+
+theTargetField = MsgBox.ListAsString(lstStrFields, "Feld auswählen, in das der kopierte Inhalt eingefuegt werden soll :","Zielfeld auswaehlen")
+if ((theTargetField = nil) OR (theTargetField.Count = 0)) then
+  return nil
+end
+
+'# konvertieren zu Feldtypen
+
+theSourceField = theVTab.FindField(theSourceField)
+theTargetField = theVTab.FindField(theTargetField)
+
+theSelected = theVTab.GetSelection
+
+'# Damit in Zahlenfeldern stehende Bruchzahlen korrekt in Textfeldern abgebildet werden,
+'# muss bei diesem Uebertrag zuerst der Wert mit 100000 multipliziert und das Ergebnis 
+'# anschliessend wieder durch denselben Wert geteilt werden
+
+if (theVTab.GetSelection.Count = 0) then
+  wasSelected = 0
+  for each rec in theVTab
+    if ((theTargetField.getType.AsString = "FIELD_CHAR") and (theSourceField.getType.AsString = "FIELD_DECIMAL")) then
+      theSelected.Set(rec)
+      theVTab.SetSelection(theSelected)
+      theVTab.UpdateSelection
+      theVTab.Calculate("(["+theSourceField.AsString+"]*100000).AsString",theTargetField)
+    elseif ((theTargetField.getType.AsString = "FIELD_CHAR") and (theSourceField.getType.AsString = "FIELD_CHAR")) then
+      theVTab.Calculate("["+theSourceField.AsString+"].AsString",theTargetField)
+    elseif ((theTargetField.getType.AsString = "FIELD_DECIMAL") and (theSourceField.getType.AsString = "FIELD_CHAR")) then
+      theValue = theVTab.ReturnValue(theSourceField, rec )
+      if (theValue.IsNumber) then
+        theVTab.SetValue(theTargetField,rec,theValue.AsNumber)
+      else
+        theVTab.SetValue(theTargetField,rec,"0".AsNumber)
+      end
+    elseif ((theTargetField.getType.AsString = "FIELD_DECIMAL") and (theSourceField.getType.AsString = "FIELD_DECIMAL")) then
+      theVTab.Calculate("["+theSourceField.AsString+"]",theTargetField)
+    else
+      MsgBox.Warning("Dieser Feldtyp wird nicht unterstuetzt"+10.AsChar+"Kopieren nicht moeglich","Abbruch")
+      return nil
+    end
+  end
+  if ((theTargetField.getType.AsString = "FIELD_CHAR") and (theSourceField.getType.AsString = "FIELD_DECIMAL")) then
+    for each rec in theSelected
+      theValue = theVTab.ReturnValue(theTargetField, rec )
+      theValue = theValue.AsNumber / 100000
+      theVTab.SetValue(theTargetField,rec,theValue.AsString)
+    end
+  end
+else
+  wasSelected = 1
+  for each rec in theSelected
+    if ((theTargetField.getType.AsString = "FIELD_CHAR") and (theSourceField.getType.AsString = "FIELD_DECIMAL")) then
+      theSelected.Set(rec)
+      theVTab.SetSelection(theSelected)
+      theVTab.UpdateSelection
+      theVTab.Calculate("(["+theSourceField.AsString+"]*100000).AsString",theTargetField)
+    elseif ((theTargetField.getType.AsString = "FIELD_CHAR") and (theSourceField.getType.AsString = "FIELD_CHAR")) then
+      theVTab.Calculate("["+theSourceField.AsString+"].AsString",theTargetField)
+    elseif ((theTargetField.getType.AsString = "FIELD_DECIMAL") and (theSourceField.getType.AsString = "FIELD_CHAR")) then
+      theValue = theVTab.ReturnValue(theSourceField, rec )
+      if (theValue.IsNumber) then
+        theVTab.SetValue(theTargetField,rec,theValue.AsNumber)
+      else
+        theVTab.SetValue(theTargetField,rec,"0".AsNumber)
+      end
+    elseif ((theTargetField.getType.AsString = "FIELD_DECIMAL") and (theSourceField.getType.AsString = "FIELD_DECIMAL")) then
+      theVTab.Calculate("["+theSourceField.AsString+"]",theTargetField)
+    else
+      MsgBox.Warning("Dieser Feldtyp wird nicht unterstuetzt"+10.AsChar+"Kopieren nicht moeglich","Abbruch")
+      return nil
+    end
+  end 
+  if ((theTargetField.getType.AsString = "FIELD_CHAR") and (theSourceField.getType.AsString = "FIELD_DECIMAL")) then
+    for each rec in theSelected
+      theValue = theVTab.ReturnValue(theTargetField, rec )
+      theValue = theValue.AsNumber / 100000
+      theVTab.SetValue(theTargetField,rec,theValue.AsString)
+    end
+  end 
+end
+
+'# Anzeige aktualisieren
+
+theVTab.UpdateSelection
+
+'# Selektion aufheben, wenn zuvor nichts selektiert
+
+if (wasSelected = 0) then
+  theSelected.ClearAll
+  theVTab.UpdateSelection
+end
+
+'# Editsession beenden, wenn zu Beginn nicht gestartet
+
+if (theEditstatus = 0) then
+  theVTab.SetEditable(false)
+end
+

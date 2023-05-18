@@ -1,0 +1,170 @@
+'########################################################
+'#
+'# Filename:     TableTools_ExportHTML.ave
+'# Author:       Adrian Boehlen
+'# Date:         29.05.2014
+'# Version:      0.3
+'# Based on:     Table2HTML
+'# 
+'# Purpose:      - Konvertiert Tabellen ins HTML-Format
+'#               - verschiedene Stile sind waehlbar
+'#               - Zahlenkolonnen werden rechtsbuendig,
+'#                 Textkolonnen linksbuendig dargestellt
+'#
+'########################################################
+
+'# Directions:
+'# -----------
+'# 1. Place this script in a script editor and compile it.
+'# 2. Make the Table document you want to export to HTML format Active.
+'# 3. Edit the table's properties so that the name of the table is the
+'#    title you want to use in the HTML table, Hide any fields you do
+'#    not want in the HTML table, and set aliases for any cryptically
+'#    named fields.
+'# 4. From the Window menu choose the name of the script editor that
+'#    contains this script, and click the Run button.
+'# 5. Choose the style of HTML table want.
+'# 6. Choose a filename for your HTML table.
+
+'# Style definieren
+
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Warning("Start this script from an active Table.","")
+  return nil
+end
+
+theTab = theTable.GetVTab
+
+Styles = {"Classic","Classic with Highlighted Column","Green & White Rows","Green & White Rows with Highlighted Column"}
+Style = Msgbox.ChoiceAsString(Styles,"Choose a style for your HTML Table:", "Save Table as HTML")
+if (Style = nil) then
+  return nil
+end
+
+'# HTML File anlegen
+
+tfn = "$TEMP".AsFileName.MakeTmp("mytable","htm")          
+rfn = FileDialog.Put(tfn, "*.htm", "Save Table as HTML")
+if (rfn = nil) then
+  return nil
+end
+
+R_file = LineFile.Make(rfn,#FILE_PERM_WRITE)
+
+if  (theTab.GetNumSelRecords > 0) then
+  selOnly = Msgbox.YesNoCancel("Export just selected records?","Save Table as HTML",false)
+  if (SelOnly = nil) then
+    return nil
+  end
+else
+  selOnly = false
+end
+
+'# Feldnamen ermitteln
+
+mx = 0
+Fstr = "  <tr> "
+vf = {}
+for each f in theTab.GetFields
+  if (f.IsVisible) then
+    Fstr = Fstr + 10.AsChar + "    <th>"+f.GetAlias+"</th>"
+    mx = mx + 1
+    vf.Add(f.GetAlias)
+  end
+end
+Fstr = Fstr + 10.AsChar + "  </tr>"
+
+if (Style.Contains("High")) then
+  hf = Msgbox.ChoiceAsString(vf,"Choose a Field to highlight:","Save Table as HTML")
+  if (hf = nil) then
+    return nil
+  end
+end
+
+'# HTML Header schreiben
+
+R_file.WriteElt("<!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Transitional//EN""")
+R_file.WriteElt("    ""http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"">")
+R_file.WriteElt("<html xmlns=""http://www.w3.org/1999/xhtml"">")
+R_file.WriteElt("<head>")
+R_file.WriteElt("  <meta http-equiv=""Content-Type""")
+R_file.WriteElt("    content=""text/html; charset=iso-8859-1"" />")
+R_file.WriteElt("  <title>"+av.GetActiveDoc.GetName+"</title>")
+R_file.WriteElt("  <style type=""text/css"">")
+R_file.WriteElt("    h1,td,th,b,i { font-family:Helvetica,sans-serif; }")
+R_file.WriteElt("    h1 { font-size:26px; margin-bottom:18px; }")
+R_file.WriteElt("    th { font-size:20px; }")
+R_file.WriteElt("    p,td { font-size:18px; }")
+R_file.WriteElt("  </style>")
+R_file.WriteElt("</head>")
+R_file.WriteElt("<body bgcolor=""#FFFFFF"">")
+R_file.WriteElt("<table border=""0"" width=""100%"" cellspacing=""2"" cellpadding=""0"">")
+R_file.WriteElt("  <tbody>")
+R_file.WriteElt("    <tr>")
+R_file.WriteElt("      <td align=""center"">")
+R_file.WriteElt("      <h1>"+av.GetActiveDoc.GetName+"</h1>")
+R_file.WriteElt("      <br />")
+R_file.WriteElt("      </td>")
+R_file.WriteElt("    </tr>")
+R_file.WriteElt("  </tbody>")
+R_file.WriteElt("</table>")
+
+R_file.WriteElt("<table border=""1"" width=""100%"" cellspacing=""2"" cellpadding=""0"">")
+'# urspruengliche Syntax fuer Titel
+'R_file.WriteElt("  <tr>")
+'R_file.WriteElt("    <th colspan="+mx.AsString+">"+av.GetActiveDoc.GetName+"</th>")
+'R_file.WriteElt("  </tr>")
+R_file.WriteElt(Fstr)
+
+rt = 1
+
+if (SelOnly = true) then
+  xt = theTab.GetSelection
+else
+  xt = theTab
+end
+
+'# Daten ermitteln und HTML Body schreiben
+
+for each r in xt
+  if (Style.Contains("Green")) then
+    if (rt < 3) then
+      ColStr = "#FFFFFF"
+    elseif (rt <= 4) then
+      ColStr = "#BBFFBB"
+    end
+    if (rt = 4) then
+      rt = 0
+    end
+  else
+    ColStr = "#FFFFFF"
+  end
+  fstr = "  <tr>"
+  for each f in theTab.GetFields
+    if ( (Style.Contains("High")) AND (hf = (f.GetAlias)) ) then
+      Ost = ColStr.Clone
+      ColStr = "#FFFFBB"
+    end
+    if (f.IsVisible) then
+      v = theTab.ReturnValueString(f,r)
+      theType = f.getType
+      if ((theType.AsString = "FIELD_DECIMAL") or (theType.AsString = "FIELD_DATE")) then
+        fstr = fstr + 10.AsChar +"    <td align=""right"" bgcolor="+ColStr+"> "+v+" </td>"
+      else
+        fstr = fstr + 10.AsChar +"    <td align=""left"" bgcolor="+ColStr+"> "+v+" </td>"
+      end
+    end
+    if ( (Style.Contains("High")) AND (hf = (f.GetAlias)) ) then
+      ColStr = Ost
+    end
+  end
+  fstr = fstr + 10.AsChar + "  </tr>"
+  R_file.WriteElt(fstr)
+  rt = rt + 1
+end
+R_file.WriteElt("</table>")
+R_file.WriteElt("</html>")
+R_file.Close
+

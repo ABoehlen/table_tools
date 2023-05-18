@@ -1,0 +1,3 @@
+theTable = av.GetActiveDoc
+theTable.Select
+av.GetProject.SetModified(true)

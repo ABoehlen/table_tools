@@ -1,0 +1,305 @@
+'
+' TableTools_Sort.ave
+' (c) 1998-2000 Quantitative Decisions, Merion, PA USA
+' http://www.quantdec.com
+'
+' Physically sort records in a table or theme.
+'
+' SELF:    void
+'
+' RETURNS: Error code (integer).  See the "constants" section.
+'
+' CONTEXT: Run from a table or a view with one active ftheme.
+'
+' All selected records are sorted on the active field
+' and moved in sort order to the end of the physical table.
+' If no records are selected, the process is applied to all
+' records.  
+' If there is no active field, the user is prompted to select one.
+' In any event, the user is asked whether to sort in 
+' ascending or descending order.
+'
+' Intended to establish drawing order in editable themes:
+' shapes are drawn in the order encountered while processing
+' the FTab.  Thus this operation visually "promotes" the
+' selected features to the top and they are drawn from first
+' (in sort order) to last among themselves.  For example,
+' if the selection consists of a single record, it is 
+' promoted to the top of the drawing stack.
+'
+' W. Huber, Quantitative Decisions, Merion, PA  USA 6/11/98
+' whuber@Quantdec.com
+'
+' 6/18/98: Added f.IsEditable protection against nasty AV
+'          behavior.
+' 6/27/98: Modified from Table.PermutePhysical.
+'          Most of the error branches have not been tested.
+'          Tested with small themes, with and without selections,
+'          with and without definitions set.
+' 2/22/00: Improved error checking.  Created return codes.
+'          Added progress monitoring to long operations.
+'          Some optimizations made.
+'
+' Comments:
+' This script is simple-minded about processing themes: it
+' processes only the first active theme, if any.  Likewise,
+' although it does some error checking, it merely return NILs
+' on encountering an error condition.
+'
+' Sorting is accomplished through the table.sort request.
+' Being built in, it's probably the fastest way available,
+' and it does not require creating an Avenue list of keys in
+' memory.
+'
+' Dealing with tables is a real bear.  First, to sort them,
+' their windows have to be open.  This automatically adds
+' them to the project.  Second, as soon as a record is 
+' added, the sort is broken and the table reverts to physical
+' order.  Third, if one asks a table for its active field
+' without the table being open, ArcView crashes.
+'
+' Our work-around is to do all the ConvertRowToRecord 
+' requests at once and cache their results in a list.  Since
+' the primary purpose of this script is to reorder features
+' and, presumably, most themes won't have that many features 
+' (less than 10,000 typically), this doesn't create such a
+' huge performance hit.
+'
+' Another aberrant Avenue behavior encountered in testing
+' this script is that a selection bitmap can have defined-out
+' bits set.  Thus, for example, it is possible for the number
+' of selected records to exceed the number of visible records.
+' This script therefore takes the precaution of anding the
+' definition bitmap with the selection bitmap.
+'
+' ArcView seems to do a good job of packing the underlying
+' tables after removing records.
+'-----------------------------------------------------------'
+'
+' Common message box title:
+'
+sTitle = "Physical Sort"
+'
+' Defined return codes (constants):
+'
+nSUCCESS      =  0
+nERR_NOTHEME  = -1 ' No active ftheme
+nERR_BADFTAB  = -2 ' Problem with the FTab
+nERR_CONTEXT  = -3 ' Not a view or table 
+nERR_NOFIELDS = -4 ' No visible fields for sorting
+nERR_USER     = -5 ' User cancellation
+nERR_EDIT     = -6 ' Cannot edit the table
+nERR_ADD      = -7 ' Cannot add a new record
+nERR_SAVE     = -8 ' Cannot save the transactions
+'
+' If the current document is a table, obtain its VTab.
+' Otherwise, use the first active theme's FTab, if there
+' is an active theme.
+'
+aTable = av.GetActiveDoc
+if (av.GetActiveDoc.Is(Table)) then
+  aVTab = av.GetActiveDoc.GetVTab
+  wasAdded = FALSE
+elseif (av.GetActiveDoc.Is(View)) then
+  lstThemes = {}
+  for each theTheme in av.GetActiveDoc.GetActiveThemes
+    if (theTheme.Is(FTheme)) then
+      lstThemes.Add(theTheme)
+    end
+  end
+  if (lstThemes.Count = 0) then
+    MsgBox.Info("You need to activate an FTheme to process.", sTitle)
+    return nERR_NOTHEME
+  end
+  aVTab = lstThemes.Get(0).GetFTab
+  aTable = Table.Make(aVTab)
+  if (aTable = NIL) then
+    MsgBox.Error("It appears this theme's feature table has an error.", sTitle)
+    return nERR_BADFTAB
+  end
+  aTable.SetName("Made by"++sTitle)
+  wasAdded = TRUE
+else
+  MsgBox.Info("Run this script from a View or Table document.", sTitle)
+  return nERR_CONTEXT
+end
+'
+' Usual housekeeping for processing all records if none are selected.
+'
+theBitmap = aVTab.GetSelection
+theBitmap.And(aVTab.GetDefBitmap)     ' 22 Feb 2000
+aVTab.UpdateSelection                 ' 22 Feb 2000
+wasUnselected = (theBitmap.Count = 0)
+if (wasUnselected) then
+  theBitmap.SetAll
+end
+'
+' Establish the sort order.  Ask user for sort field, if necessary,
+' and whether this is an ascending or descending sort.
+'
+if (aTable.GetWin.IsOpen.Not) then
+  aTable.GetWin.Open
+end
+fldSort = aTable.GetActiveField '--springs an Avenue bug if the table is not open
+if (fldSort = NIL) then
+  lstStrFields = {}
+  for each theField in aVTab.GetFields
+    if (theField.IsTypeShape.Not and theField.IsVisible) then
+      lstStrFields.Add(theField.GetAlias)
+    end
+  end
+  if (lstStrFields.Count = 0) then
+    MsgBox.Error("No data fields are visible for sorting--" + 
+                 "select Table|Properties to make them visible; aborting...", sTitle)
+    if (wasAdded) then
+      av.GetProject.RemoveDoc(aTable)
+    end
+    return nERR_NOFIELDS
+  end
+  strFldSort = MsgBox.ChoiceAsString(lstStrFields, "Select a field for sorting", sTitle)
+  if (strFldSort = NIL) then 
+    return nERR_USER
+  end
+  fldSort = aVTab.FindField(strFldSort)
+end
+IsAscending = MsgBox.YesNoCancel("Sort ascending (yes) or descending (no)?", 
+              sTitle ++ "[" + fldSort.GetAlias + "]", TRUE)
+'
+' Exit if no sort is wished
+'
+if (IsAscending = nil) then
+  theSelected = aVTab.GetSelection
+  theSelected.ClearAll
+  aVTab.UpdateSelection
+  return nil
+end
+'
+' Start editing the VTab.
+'
+if (aVTab.StartEditingWithRecovery.Not) then
+  MsgBox.Error("Unable to edit this table--make sure it's in dbf format, is not read-only," ++
+               "and that its folder is not read-only; aborting...", sTitle)
+  if (wasAdded) then
+    av.GetProject.RemoveDoc(aTable)
+  end
+  return nERR_EDIT
+end
+'
+' Sort the table document.
+'
+av.ClearStatus
+av.ShowMsg("Sorting...")
+
+aTable.Sort(fldSort, IsAscending.Not)
+aTable.PromoteSelection
+M = aVTab.GetNumRecords
+'aVTab.GetSelection.And(aVTab.GetDefBitmap)' The selection can include some undefined records!
+N = aVTab.GetSelection.Count
+'
+' Capture the sort order.
+'
+av.ClearStatus
+av.ShowMsg("Capturing the sort order...")
+av.ShowStopButton
+
+lstOrder = {}
+for each theRow in 0..(N-1)
+  if (av.SetStatus(100*(theRow+1)/N).not) then break end ' 22 Feb 2000
+  
+  lstOrder.Add(aTable.ConvertRowToRecord(theRow)) ' Compute this before adding a record screws it up!
+end
+if (lstOrder.Count < N) then ' 22 Feb 2000
+  return nERR_USER
+end
+'
+' Find the editable fields (22 Feb 2000: an optimization).
+'
+lstFields = {}
+for each f in aVTab.GetFields
+  if (f.IsEditable) then
+    lstFields.Add(f)
+  end
+end
+'
+' Minimize the table window to avoid redraw delays.
+' (22 Feb 2000)
+'
+aTable.GetWin.Close ' Does not work when aTable was created from a theme in this script!
+'
+' Append copies of the selected records to the table, in the correct order.
+' 
+av.ClearStatus
+av.ShowMsg("Now editing the table...")
+av.ShowStopButton
+nCode = nSUCCESS
+for each theRow in 0..(N-1)
+  if (av.SetStatus(100*(theRow+1)/N).not) then 
+    nCode = nERR_USER
+    break
+  end ' 22 Feb 2000
+  
+  if (aVTab.CanAddRecord.Not) then
+    MsgBox.Error("Unable to add a new record--you may be out of disk space or RAM; aborting...", 
+                 sTitle)
+    nCode = nERR_ADD
+    break
+  end
+  
+  theRec = lstOrder.Get(theRow)
+  
+  aVTab.BeginTransaction
+    recDest = aVTab.AddRecord
+    for each f in lstFields
+      aVTab.SetValue(f, recDest, aVTab.ReturnValue(f, theRec))
+    end
+  aVTab.EndTransaction
+  
+end ' Appending selected records
+'
+' Process any errors that occurred.
+'
+if (nCode <> nSUCCESS) then            ' 22 Feb 2000
+  aVTab.StopEditingWithRecovery(false)
+  if (wasAdded) then
+    av.GetProject.RemoveDoc(aTable)
+  else
+    aTable.GetWin.Open
+  end
+  return nCode
+end
+'
+' Remove the original versions of the records.
+'
+av.ClearStatus
+av.ShowMsg("Cleaning up the table...")
+aVTab.BeginTransaction
+  aVTab.RemoveRecords(aVTab.GetSelection)
+aVTab.EndTransaction
+if (aVTab.StopEditingWithRecovery(true).Not) then  ' 22 Feb 2000
+  msgBox.Error("Unable to save the changes; aborting...", sTitle)
+  return nERR_SAVE
+end
+'
+' Update the selection and definition bitmaps.
+'
+if (wasUnselected.Not) then
+  aVTab.GetSelection.SetRange(M-N, N)
+  aVTab.UpdateSelection
+end
+aVTab.SetDefinition(aVTab.GetDefinition)
+aVTab.UpdateDefBitmap
+'
+' Synchronize the disk and in-memory versions of the VTab.
+'
+aVTab.Flush
+'
+' Clean up the project if necessary.
+'
+if (wasAdded) then
+  av.GetProject.RemoveDoc(aTable)
+else
+  aTable.GetWin.Open
+end
+return nSUCCESS
+' end of script
+

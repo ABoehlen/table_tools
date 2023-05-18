@@ -1,0 +1,10 @@
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Info("Start this script from an active Table.","")
+  return nil
+end
+
+theTable.GetVTab.GetSelection.ClearAll
+theTable.GetVTab.UpdateSelection
+

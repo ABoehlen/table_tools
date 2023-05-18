@@ -1,0 +1,25 @@
+'#########################################################################
+'#
+'# Filename:     Ext_Unin.ave
+'# Author:       Adrian Boehlen
+'# Date:         03.11.2022
+'# Version:      1.0
+'#
+'# Purpose:      entfernt die Komponenten beim Deaktivieren der Extension 
+'#
+'#########################################################################
+
+if (av.GetProject = nil) then
+  return nil
+end
+
+if (av.GetProject.IsClosing) then
+  return nil
+end
+
+viewGUI = av.GetProject.FindGUI( "Table" )
+
+'# Schaltflaeche und Dialoge entfernen
+viewGUI.GetButtonBar.remove(viewGUI.GetButtonBar.findbyscript( "TableTools.start"))
+av.GetProject.removedialog("TableTools")
+

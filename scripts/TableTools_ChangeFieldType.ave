@@ -1,0 +1,154 @@
+'#################################################################
+'#
+'# Filename:     TableTools_ChangeFieldType.ave
+'# Author:       Adrian Boehlen
+'# Date:         24.01.2014
+'# Version:      0.6
+'#
+'# Purpose:      Aendert den Feldtypen des selektierten Feldes
+'#               indem der Feldinhalt gelesen und in ein
+'#               neues Feld mit gleichem Namen geschrieben wird
+'#
+'#               Das urspruengliche Feld kann auch erhalten werden
+'#               In diesem Fall ist fuer das neue Feld ein
+'#               neuer Name zu definieren
+'#
+'#               Stehen im neuen Feld weniger Nachkommastellen
+'#               zur Verfuegung, wird korrekt gerundet
+'#
+'#################################################################
+
+'# die Tabelle muss im Edit-Modus sein
+
+theTable = av.GetActiveDoc
+theVTab = theTable.GetVTab
+
+if (theVTab.CanEdit.Not) then
+  MsgBox.Info("Die Tabelle kann nicht bearbeitet werden","Abbruch")
+  return nil
+end
+
+if (theVTab.IsEditable.Not) then
+  theVTab.StartEditingWithRecovery
+  theEditstatus = 0
+else
+  theEditstatus = 1
+end
+
+'# Es muss ein Feld aktiv sein
+
+if (theTable.GetActiveField = nil) then
+  MsgBox.Info("Es ist kein Feld aktiv","Abbruch")
+  return nil
+end
+
+theField = theTable.GetActiveField
+theFieldName = theField.GetName
+
+'# allfaellig vorhandene Selektionen aufheben
+
+theSelected = theVTab.GetSelection
+theSelected.ClearAll
+theVTab.UpdateSelection
+
+'# Zielfeldtyp bestimmen
+
+theTypeList = {}
+theTypeList.Add("Decimal")
+theTypeList.Add("String")
+
+theType = MsgBox.ListAsString(theTypeList,"Definieren Sie den Feldtyp","Feldtyp bestimmen")
+if (theType = nil) then
+  return nil
+end
+
+theWidth = MsgBox.Input("Geben Sie die Feldlaenge ein", "Feldlaenge definieren",16.AsString)
+
+if ((theWidth = nil) or (theWidth.IsNumber.Not)) then
+  MsgBox.Error("Ungueltige Eingabe","Abbruch")
+  return nil
+elseif (theWidth.AsNumber < 1) then
+  MsgBox.Error("Feldlaenge ist zu gering","Abbruch")
+  return nil
+end
+
+if (theType = "Decimal") then
+  theDecimalPlaces = MsgBox.Input("Geben Sie die Anzahl Nachkommastellen ein", "Nachkommastellen definieren",3.AsString)
+  if ((theDecimalPlaces = nil) or (theDecimalPlaces.IsNumber.Not)) then
+    MsgBox.Error("Ungueltige Eingabe","Abbruch")
+    return nil
+  end
+end
+
+'# Inhalt der Spalte in Liste einlesen
+
+theContent = {}
+for each rec in theVTab
+  theContent.Add(theVTab.ReturnValue(theField, rec ))
+end
+
+'# Urspruengliches Feld loeschen oder Name der Kopie definieren
+
+if (MsgBox.YesNo("Urspruengliches Feld loeschen ?","Feld loeschen",true)) then
+  theTable.StopEditing
+  theVTab.RemoveFields({theField})
+  theVTab.StartEditingWithRecovery
+  theNewFieldName = 0
+else
+  theNewFieldName = MsgBox.Input("Geben Sie den Namen des neuen Feldes ein", "Feldname definieren","")
+  if (theNewFieldName = nil) then
+    return nil
+  end
+end
+
+'# neues Feld mit definiertem Feldtyp anlegen
+
+if (theType = "Decimal") then
+  if (theNewFieldName = 0) then
+    theNewField = Field.Make (theFieldName,#FIELD_DECIMAL,theWidth.AsNumber,theDecimalPlaces.AsNumber)
+  else
+    theNewField = Field.Make (theNewFieldName,#FIELD_DECIMAL,theWidth.AsNumber,theDecimalPlaces.AsNumber)
+  end
+  theVTab.AddFields({theNewField})
+elseif (theType = "String") then
+  if (theNewFieldName = 0) then
+    theNewField = Field.Make (theFieldName,#FIELD_CHAR,theWidth.AsNumber,0)
+  else
+    theNewField = Field.Make (theNewFieldName,#FIELD_CHAR,theWidth.AsNumber,0)
+  end
+  theVTab.AddFields({theNewField})
+end
+
+'# zwischengespeicherte Werte in neues Feld schreiben
+'# korrekte Rundung erzwingen
+'# Strings die keine Zahlen sind, wahlweise als 0 in ein Dezimalfeld schreiben,
+'# oder Feld leer lassen
+
+for each rec in theVTab
+  theValue = theContent.Get(rec)
+  theValue = theValue.AsString
+  if (theType = "Decimal") then
+    if (theValue.IsNumber.Not) then
+      if (MsgBox.YesNo("Werte, die keine Zahlen sind, als 0 uebernehmen ?","keine Zahlen",true)) then
+        theValue = 0
+        theVTab.SetValue(theNewField,rec,theValue)
+      end
+    else
+      theValue = (theValue.AsNumber * (10 ^ theDecimalPlaces.AsNumber)).Round
+      theValue = theValue / (10 ^ theDecimalPlaces.AsNumber)
+      theVTab.SetValue(theNewField,rec,theValue)
+    end
+  elseif (theType = "String") then
+    theVTab.SetValue(theNewField,rec,theValue.AsString)
+  end
+end
+
+'# Anzeige aktualisieren
+
+theVTab.UpdateSelection
+
+'# Editsession beenden, wenn zu Beginn nicht gestartet
+
+if (theEditstatus = 0) then
+  theVTab.SetEditable(false)
+end

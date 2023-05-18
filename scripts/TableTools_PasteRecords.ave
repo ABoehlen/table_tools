@@ -1,0 +1,215 @@
+' NAME: TableTools_PasteRecords.ave
+' HERKUNFT: Harald 04 / 03 / 03
+' BRAUCHT: Active Table
+' EINBINDUNG MTOOLS: Table Menue (Label: Paste Record Values)
+' HILFE:  Pastes the copied Record Values to the selected Records  (s. CTRL-Click Info)
+'***************************************************************
+
+' CTRL-KLICK Info (erscheint, wenn das Skript bei gedrueckter Strg- bzw. Ctrl-Taste aufgerufen wird)
+ 
+if (System.IsControlKeyDown) then
+
+  message =
+    " "+nl+
+    
+    "SCRIPT NAME: mm_tableAttributePaste "+nl+nl+
+  
+    "ORIGIN: based upon 'Copy Features between Themes' by Tim Johnson "+nl+nl+
+    
+    "Pastes the copied values to the selected records. "+nl+nl+
+    
+    "Attribute values of the following fields will be missed out: "+nl+nl+
+    
+    "   [Shape], "+nl+
+    "   [ID], "+nl+
+    "   [RecNo], "+nl+
+    "   [Area], "+nl+
+    "   [Perimeter], "+nl+
+    "   [Hectares], "+nl+
+    "   [Length], "+nl+nl+
+    
+    "   [X_Coord], "+nl+
+    "   [Y_Coord], "+nl+
+    "   [Z_Coord], "+nl+nl+
+    
+    "   [X-Coord], "+nl+
+    "   [Y-Coord], "+nl+
+    "   [Z-Coord], "+nl+nl+
+
+    "   [X_Beg], "+nl+
+    "   [Y_Beg], "+nl+
+    "   [Z_Beg], "+nl+nl+
+    
+    "   [X_End], "+nl+
+    "   [Y_End], "+nl+
+    "   [Z_End], "+nl+nl+
+
+    "   [X_Centr], "+nl+
+    "   [Y_Centr] "+nl
+    
+  msgbox.report(message,"INFO: Paste Record Values ...")
+  
+  return nil
+end
+
+' -----------------------------------------------------------------------------------
+
+theVari = "theCVals"
+
+theTestScript = Script.Make("return _"+theVari)
+if (theTestScript.HasError) then
+  _theCVals = {}
+end
+
+theVari = "theCFlds"
+
+theTestScript = Script.Make("return _"+theVari)
+if (theTestScript.HasError) then
+  _theCFlds = {}
+end
+
+if ((_theCVals = NIL) or (_theCVals.count < 1)) then
+  MsgBox.Info("No Values copied yet."," INFO")
+  return NIL
+end
+
+if ((_theCFlds = NIL) or (_theCFlds.count < 1)) then
+  MsgBox.Info("No Values copied yet."," INFO")
+  return NIL
+end
+
+theTable = av.getActiveDoc
+
+if (theTable.is(Table).not) then
+  MsgBox.Info("This is not a Table...","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+
+theTargetFlds = theVTab.GetFields
+
+theTFlds = List.Make
+
+for each fld in theTargetFlds
+  if ((theVTab.IsJoinedField(fld).not) and (fld.GetName <> "Shape")) then
+    theTFlds.Add(fld.GetAlias)
+  end
+end
+
+i = 0
+f = 0
+for each item in theTFlds
+  if (item <> _theCFlds.get(i)) then
+    f = f + 1
+  end
+  i = i + 1
+  if (i = _theCFlds.Count) then break end
+end
+
+if (f > 0) then
+  if (MsgBox.YesNo("The table properties have changed since copying. Continue anyhow?"," Changed Table",TRUE).not) then
+    av.ShowMsg("llll llll llll llll llll   llll llll llll    Done nothing")
+    return NIL
+  end
+end
+
+theRS = ""
+theBitMap = theVTab.GetSelection
+if (theBitMap.count = 0) then
+  MsgBox.Info("Nothing selected. Select one record at least."," INFO")
+  av.ShowMsg("llll llll llll llll llll   llll llll llll    Done nothing")
+  return NIL
+elseif (theBitMap.count > 1) then
+  theRS = "s"
+end
+
+theEditState = FALSE
+
+if ((theVTab.CanEdit).not) then
+  MsgBox.Info("Can not start editing session."+NL+
+  "Check writing permission."," Can not edit")
+  return nil
+else
+  if ((theVTab.IsEditable).not) then
+    theVTab.StartEditingWithRecovery
+    theEditState = TRUE
+  end
+end
+
+theTable.StopEditing
+
+theValCount = _theCVals.Count
+
+j = 0
+theCount = 0
+tst = 1
+for each rec in theVTab.GetSelection
+  for each fld in _theCFlds
+    theSFld = theVTab.findField(fld)
+    if (theSFld = NIL) then
+      theCount = theCount + 1
+      continue
+    end
+    if (tst > theValCount) then
+      theCount = 0
+      tst = 1
+    end
+    if ((theVTab.isJoinedField(theSFld).not) and
+      (fld.GetName <> "Shape") and 
+      (theSFld.GetName <> "ID") and 
+      (theSFld.GetName <> "RecNo") and 
+      (theSFld.GetAlias <> "Area") and
+      (theSFld.GetAlias <> "Perimeter") and
+      (theSFld.GetAlias <> "Hectares") and
+      (theSFld.GetAlias <> "Length") and 
+
+'      (theSFld.GetAlias <> "X") and 
+'      (theSFld.GetAlias <> "Y") and 
+'      (theSFld.GetAlias <> "Z") and 
+
+      (theSFld.GetAlias <> "X_Coord") and 
+      (theSFld.GetAlias <> "Y_Coord") and 
+      (theSFld.GetAlias <> "Z_Coord") and
+
+      (theSFld.GetAlias <> "X-Coord") and
+      (theSFld.GetAlias <> "Y-Coord") and
+      (theSFld.GetAlias <> "Z-Coord") and
+      
+      (theSFld.GetAlias <> "X_Centr") and 
+      (theSFld.GetAlias <> "Y_Centr") and 
+      (theSFld.GetAlias <> "X_Beg") and 
+      (theSFld.GetAlias <> "Y_Beg") and 
+      (theSFld.GetAlias <> "Z_Beg") and 
+      (theSFld.GetAlias <> "X_End") and 
+      (theSFld.GetAlias <> "Y_End") and 
+      (theSFld.GetAlias <> "Z_End")) then
+      
+      theValue = _theCVals.Get(theCount)
+      theVTab.SetValue(theSFld,rec,theValue)
+      j = j + 1
+'      if (j >= theValCount) then break end
+    end
+    theCount = theCount + 1
+    tst = tst + 1
+  end
+end
+
+theVS = ""
+if (j <> 1) then
+  theVS = "s"
+end
+
+theVTab.Flush
+theTable.GetWin.invalidate
+
+'if (theEditState = TRUE) then
+'  theVTab.StopEditingWithRecovery(TRUE)
+'end
+
+av.ShowMsg("llll llll llll llll llll   llll llll llll    "+(theVTab.GetSelection.Count).AsString++"record"+theRS+" processed  ("+
+           j.AsString++"Value"+theVS+" inserted)  -  Please check the results and save if they are okay...")
+
+
+
+

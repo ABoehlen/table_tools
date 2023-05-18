@@ -1,0 +1,88 @@
+'#############################################################
+'#
+'# Filename:     TableTools_SaveLoadAliasFile.ave
+'# Author:       Adrian Boehlen
+'# Date:         15.11.2014
+'# Version:      0.1
+'#
+'# Purpose:      exportieren und importieren von Field-Aliases 
+'#                - Click: exportiert Field-Aliases in ein
+'#                  CSV-File mit der Endung .alias
+'#                - Shift-Click: importiert .alias-File
+'#                  und weist den passenden Feldern die
+'#                  definierten Aliases zu            
+'#
+'#############################################################
+
+'# die Tabelle muss aktiv sein
+
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Warning("Start this script from an active Table.","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+theFields = theVTab.GetFields
+
+if (System.IsShiftKeyDown) then
+  '# Dialogbox definieren und File auswaehlen
+  theFileName = FileDialog.Show("*.alias","Alias-File","Select Alias File")
+  if (theFileName = nil) then 
+    exit 
+  end
+
+  '# File in LineFile einlesen
+  tableFile = LineFile.Make(theFileName, #FILE_PERM_READ)
+
+  '# Fileinhalt Zeile fuer Zeile durchgehen
+  '# Tabelle Feld fuer Feld durchgehen
+  '# wenn Feldname passt, Alias aus File zuweisen
+  while (true)
+    zeile = tableFile.ReadElt
+    if (zeile = nil) then
+      break
+    else
+      textListe = zeile.AsTokens(",")
+      'MsgBox.Info(textListe.Get(1),"")
+      for each theField in theFields
+        if (textListe.Get(0) = theField.GetName) then
+          theField.SetAlias(textListe.Get(1))
+        end
+      end
+    end
+  end
+
+  '# Anzeige aktualisieren
+
+  theVTab.UpdateSelection
+
+  '# File schliessen
+  tableFile.Close
+else
+  '# Endung definieren
+  Suffix = "alias"
+
+  '# Dialogbox definieren und File anlegen
+  theFileName = av.GetProject.GetWorkDir.MakeTmp("table",Suffix)
+  theFileName = FileDialog.Put(theFileName, "*." + Suffix,"Save Alias File")
+  if (theFileName = nil) then
+    return nil
+  end
+  tableFile = LineFile.Make(theFileName, #FILE_PERM_WRITE)
+
+  '# Name und Alias jedes Feldes ins File schreiben
+  for each theField in theFields
+    theAlias = theField.GetAlias
+    theName = theField.GetName
+    tableFile.WriteElt(theName+","+theAlias)
+  end
+
+  tableFile.Close
+end
+
+
+
+
+

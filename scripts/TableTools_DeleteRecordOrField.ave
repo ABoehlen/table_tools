@@ -1,0 +1,71 @@
+'#########################################################
+'#
+'# Filename:     TableTools_DeleteRecordOrField.ave
+'# Author:       Adrian Boehlen
+'# Date:         29.05.2014
+'# Version:      0.6
+'#
+'# Purpose:      löscht nach Rueckfrage selektierte Zeilen
+'#               oder das selektierte Feld
+'#               Sind sowohl Zeilen wie auch ein Feld 
+'#               selektiert, haben die Zeilen Vorrang
+'#               
+'#########################################################
+
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Info("Start this script from an active Table.","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+
+'# die Tabelle muss im Edit-Modus sein
+
+if (theVTab.IsEditable.Not) then
+  theVTab.StartEditingWithRecovery
+  theEditstatus = 0
+else
+  theEditstatus = 1
+end
+
+'# pruefen, ob mindestens eine Zeile selektiert ist
+
+if ( theVTab.GetSelection.Count <> 0 ) then
+  if (theVTab.CanEdit.Not) then
+    MsgBox.Info("Die Tabelle kann nicht bearbeitet werden","Abbruch")
+    return nil
+  end
+    
+  '# selektierte Zeilen loeschen
+
+  if (MsgBox.YesNo("Selektierte Zeile(n) wirklich loeschen ?","Delete Record",true)) then
+    theVtab.BeginTransaction
+    theVTab.RemoveRecords(theVTab.GetSelection.Clone)
+    theVTab.EndTransaction
+  end
+  
+  '# Editsession beenden, wenn zu Beginn nicht gestartet
+  
+  if (theEditstatus = 0) then
+    theVTab.SetEditable(false)
+  end
+  
+else
+  if (theTable.GetActiveField = nil) then
+    MsgBox.Info("Selektieren Sie eine Zeile oder ein Feld","Abbruch")
+    return nil
+  end
+  theField = theTable.getActiveField
+  if (MsgBox.YesNo("Selektiertes Feld '" + theField.GetAlias.AsString + "' wirklich loeschen?","Delete Field",true)) then
+    theTable.StopEditing
+    theTable.GetVTab.RemoveFields({theField})
+  end
+  
+  '# Editsession beenden, wenn zu Beginn nicht gestartet
+  
+  if (theEditstatus = 0) then
+    theVTab.SetEditable(false)
+  end
+end

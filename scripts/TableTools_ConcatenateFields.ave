@@ -1,0 +1,269 @@
+' NAME: TableTools_ConcatenateFields.ave
+' HERKUNFT: Harald Kuttig, 2004
+' HILFE: Concatenate fields. Combines the contents of fields to a new string
+'*******************************************
+
+' CTRL-KLICK Info (erscheint, wenn das Skript bei gedrueckter Strg- bzw. Ctrl-Taste aufgerufen wird)
+ 
+if (System.IsControlKeyDown) then
+
+  message =
+    " "+nl+
+    
+    "SCRIPTNAME: mm_tableConcatenateFields "+nl+nl+
+  
+    "ORIGIN: Harald 2004"+nl+nl+
+    
+    "Concatenate fields: Combines the contents of selected fields to a new string "+
+    "and writes it to a user defined field. "+nl+nl+
+    
+    "You have the option to insert a separator string between the fields. "+nl+nl+
+    
+    "Arrange your fields in an order you want their values to appear in the concatenation. "+nl
+
+  msgbox.report(message,"INFO: Concatenate Fields ...")
+  
+  return nil
+end
+
+'-----------------------------------------------------------------
+
+theTable = av.GetActiveDoc 
+
+if (theTable.is(table).not) then
+  MsgBox.Warning("Start this Script from an active Table.","")
+  av.ShowMsg("llll llll llll llll llll   llll llll llll    BREAKUP")
+  return NIL
+end
+
+theVTab = theTable.GetVTab
+theEdState = theVTab.IsEditable
+
+theMsgStrng = " Concatenate Fields"
+
+'------------------------------------------------------------------------
+' GET FIELDS
+
+lstStrFields = List.Make
+for each theFld in theVTab.GetFields
+  if ((theFld.AsString <> "Shape")and (theFld.IsVisible)) then
+    lstStrFields.Add(theFld.GetAlias)
+  end
+end
+if (lstStrFields.Count = 0) then
+  MsgBox.Info("There are no fields in the table or all fields are ''invisible''. " + 
+               "Choose ''Table | Properties'' to make fields visible.", "Modify Fields")
+  av.ShowMsg("llll llll llll llll llll   llll llll llll    BREAKUP")
+  return NIL
+end
+
+theFldList = MsgBox.MultiListAsString(lstStrFields, "Select all fields to concatenate :",theMsgStrng)
+if ((theFldList = NIL) OR (theFldList.Count = 0)) then
+  av.ShowMsg("llll llll llll llll llll   llll llll llll    BREAKUP")
+  return NIL
+end
+
+'------------------------------------------------------------------------
+' LET THE USER DEFINE A separator STRING
+
+theSep = MsgBox.Input("Enter a separator string to disjoin the entries (Cancel for None)... ",theMsgStrng+" - separator","")
+
+if (theSep = NIL) then
+  theSep = ""
+end
+
+'------------------------------------------------------------------------
+' CREATE DEFAULT WIDTH, MAX IS 252, USER HAS TO ADD SOME FOR NUMBER FIELDS
+
+theCWidth = 0
+for each afld in theFldList
+  fld = theVTab.FindField(afld)
+  theWidth = fld.GetWidth
+  if ((fld.IsTypeNumber) AND (fld.GetPrecision > 0)) then
+    theWidth = theWidth + 1
+  end
+  theCWidth = theCWidth + theWidth
+end
+
+theCWidth = theCWidth + ((theFldList.Count)*(theSep.Count))
+if (theCWidth > 252) then
+  theCWidth = 252
+end
+
+'------------------------------------------------------------------------
+' MAKE SURE TABLE IS EDITABLE
+
+if (theVtab.CanEdit) then
+  theVTab.SetEditable(true)
+  if ((theVTab.CanAddFields).Not) then
+    MsgBox.Info("No Fields can be added."+NL+
+    "Check writing permission.","Can not edit")
+    theVTab.SetEditable(theEdState)
+    av.ShowMsg("llll llll llll llll llll   llll llll llll    BREAKUP")
+    return nil
+  end
+else
+  MsgBox.Info("Can not start editing session."+NL+
+  "Check writing permission."," Can not edit")
+    av.ShowMsg("llll llll llll llll llll   llll llll llll    BREAKUP")
+  return nil
+end
+
+if (theVTab.IsBeingEditedWithRecovery) then
+  theVTab.StopEditingWithRecovery(TRUE)
+end
+
+theVTab.StartEditingWithRecovery
+theTable.StopEditing
+
+
+'----------------------------------------------------------------------------------
+' GET FIELD'S NUMBER OF RECORDS, GET THE FIELDNAME FROM THE USER
+
+theFields = theVTab.GetFields
+numRecs = theVTab.GetNumRecords
+theNRecs = theVTab.GetNumRecords
+
+theLabs = {"Name:","Width:"}
+theDefs = {"Con",theCWidth.AsString}
+
+theNmWt = MsgBox.MultiInput("Please define Name and Width of the new Field:",theMsgStrng,theLabs,theDefs)
+
+if ((theNmWt = NIL) or (theNmWt.count = 0)) then
+  av.ShowMsg("llll llll llll llll llll   llll llll llll    BREAKUP ...")
+  return NIL
+end
+
+theConFldNm = theNmWt.Get(0)
+theConFldWtSt = theNmWt.Get(1)
+if (theConFldWtSt.isNumber.not) then
+  theRes = MsgBox.YesNo("The field width must be numeric. Reset to "+theCWidth.AsString+"?",theMsgStrng+" - Width",TRUE)
+  if (theRes) then
+    theConFldWt = theCWidth
+  else
+    theVTab.SetEditable(theEdState)
+    av.ShowMsg("llll llll llll llll llll   llll llll llll    BREAKUP ...")
+    return NIL
+  end
+elseif ((theConFldWtSt.AsNumber < 1) OR (theConFldWtSt.AsNumber > 254)) then
+  theRes = MsgBox.YesNo("The field width must be > 0 and < 255. Reset to "+theCWidth.AsString+"?",theMsgStrng+" - Width",TRUE)
+  if (theRes) then
+    theConFldWt = theCWidth
+  else
+    theVTab.SetEditable(theEdState)
+    av.ShowMsg("llll llll llll llll llll   llll llll llll    BREAKUP ...")
+    return NIL
+  end
+else
+  theConFldWt = theConFldWtSt.AsNumber.Round
+end
+
+'--------------------------
+' SCHAUEN, OB FELD MIT DEM USERDEFINIERTEN NAMEN SCHON VORHANDEN... 
+
+theConFldNm_vorh = (theVTab.FindField(theConFldNm) = NIL).Not
+
+' WENN VORHANDEN - UEBERSCHREIBEN?
+
+if (theConFldNm_vorh) then
+
+  takeThatField = MsgBox.YesNoCancel("A field called ''"+theConFldNm+"'' already exists. Use this field?   "+
+                   "PS.: 'No' will delete the field and recreate it.",
+                   "Field already exists - Update?", FALSE)
+
+  if (takeThatField = FALSE) then
+    if (theConFldNm_vorh) then
+      theVTab.RemoveFields({theVTab.FindField(theConFldNm)})
+    end
+  elseif (takeThatField = TRUE) then
+    sID = theVTab.FindField(theConFldNm)
+  else
+    theVTab.setEditable(theEdState)
+    av.ShowMsg("llll llll llll llll llll   llll llll llll    BREAKUP")
+    return NIL
+  end  'if (takeThat...
+end  'if (x_exists...
+
+'---------------------------
+' ADD FIELD
+
+if (theVTab.FindField(theConFldNm) = NIL) then
+  sID = Field.Make (theConFldNm,#FIELD_CHAR,theConFldWt,0)
+  theVTab.AddFields({sID})
+end
+
+theConFld = theVTab.FindField(theConFldNm)
+
+theBitMap = theVTab.GetSelection
+theBitMap.ClearAll
+
+'---------------------------
+' DOIT
+
+i = 0
+is2Long = 0
+nRecs = theVTab.GetNumRecords
+for each rec in theVTab
+  av.ShowMsg("Collecting ...")
+  av.ShowStopButton
+  progress = (i/nRecs)*100
+  goesAhead = av.setStatus(progress)
+  if (not goesAhead) then break end
+  av.UseWaitCursor
+
+  j = 0
+  theCVal = ""
+  for each afld in theFldList
+    fld = theVTab.FindField(afld)
+    theVal = theVTab.ReturnValue(fld,rec)
+    if ((fld.IsTypeNumber) AND (fld.GetType.AsString <> "FIELD_DATE")) then
+      thePrec = fld.GetPrecision
+      theValS = theVal.SetFormatPrecision(thePrec).AsString
+    else
+      theValS = theVal.AsString
+    end
+    if (theVal.IsNull) then
+      theValS = ""
+    end
+    if (j = 0) then
+      theCVal = theCVal + theValS
+    else
+      theCVal = theCVal + theSep + theValS
+    end
+    j = j + 1
+  end
+  if (theCVal.Count > theConFldWt) then
+    is2Long = is2Long + 1
+    theBitMap.Set(rec)
+  end
+  theVTab.SetValue(theConFld,rec,theCVal)
+end
+
+if (is2Long > 0) then
+  if (is2Long = 1) then
+    theGramma = "The result string of the selected record is too long and has been cut..."
+  else
+    theGramma = "The result string of the selected "+is2Long.asString+" records is too long and has been cut..."
+  end
+  MsgBox.Info(theGramma,theMsgStrng+" - Result string too long ...")
+end
+
+av.ClearStatus
+theVTab.Flush
+theVTab.Refresh
+
+if (theEdState = FALSE) then
+  if (theNRecs > 32765) then  ' = (2^15 -3) the 'ESRI-Number'
+    theSave = MsgBox.YesNoCancel("Save edits? "+nl+"Cancel to stay in edit mode and check the results..."," Stop Editing",TRUE)
+    if (theSave = TRUE) then
+      theVTab.StopEditingWithRecovery(TRUE)
+    elseif (theSave = FALSE) then
+      theVTab.StopEditingWithRecovery(FALSE)
+    end
+  else
+    theVTab.StopEditingWithRecovery(TRUE)
+  end
+end
+
+av.ShowMsg("llll llll llll llll llll   llll llll llll    COMPLETED : Concatenate Fields...")
+

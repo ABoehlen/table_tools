@@ -1,0 +1,23 @@
+' Name: TableTools_ToggleEditing.ave
+theTable = av.GetActiveDoc
+
+if (theTable.Is(table).Not) then
+  MsgBox.Info("Start this script from an active Table.","")
+  return nil
+end
+
+theVTab = theTable.GetVTab
+if (theVTab.IsBeingEditedWithRecovery) then
+  doSave = MsgBox.YesNoCancel("Save Edits?", "Stop Editing", True)
+  if (doSave = nil) then
+    return nil
+  end
+  if (theVtab.StopEditingWithRecovery(doSave).Not) then
+     MsgBox.Info("Unable to Save Edits, please use the Save Edits As option", "")
+     return nil
+  end
+elseif (theVTab.IsEditable) then
+  theVTab.SetEditable(False)
+else
+  theVTab.StartEditingWithRecovery
+end

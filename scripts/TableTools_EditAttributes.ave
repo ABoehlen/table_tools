@@ -1,0 +1,148 @@
+'Author  : Georg A.Zelenin, Odessa(UKRAINE)
+'          Position:GIS programmer.  
+'          Municipality Dpt.on Land Resources and Parcels Control
+'           (tel/fax.(0482) 373 076 )
+'    
+'Script Class: Simple User Edit Interface - "One Click Editors". 
+'Script Name:  TableTools_EditAttributes.ave
+'
+'Title:   Single (Click/Apply) editor for a long (can not be disposed 
+'         on a sinlge screen,too much or long fields ) Open Attributes table.
+'         Single Click editor saves a time for your routine DB edits.                    
+'
+'Topics:  Script transforms clicked row under correction in a column editable
+'         Forms of MultiInput interface boxes, where each field looks like editable
+'         text line.The mode of editing are switched On or Off automatically
+'         under striking Ok(Save)/Cancel(Discard Edits) MultiInput button.
+'         Each input Box contains up to 20 lines (total Screen)
+'         and automatically gives new portion of the data if number of 
+'         the DB fields are more then 20 (Cadastre DB e.c.t.),  
+'
+'       
+'Usage: 
+'         a preparation step 
+'         a) Attach the compiled Script on Tool/Apply button in a Table environment.
+'         b) Click the row in Open Table you wish to edit by this Tool
+'         c) Makes your Edits in the Open MultiInput Box, press OK
+'
+'Rev:     Adrian Boehlen, 26.06.2014; handles dates fields also correctly
+
+
+theTable = av.GetActiveDoc
+theName  = theTable.GetName
+theTable.Select
+av.GetProject.SetModified(true)
+theVTab=theTable.getVtab
+totFields = theVTab.getFields
+
+nf  = (totFields.count-1)
+c   = 20
+res = nf mod c
+n   = (nf - res) / c
+b   = (n*c) + res
+         
+for each i in 0..n 
+  from =  i*c
+  to   = ((i + 1) * c - 1)
+  if (to > nf) then
+    to = from + res
+  end
+ 
+  nmFields    = {}
+  valFields   = {}
+  lstFields   = {}
+   
+  for each j in from..to
+    f = totFields.Get(j)
+    lstFields.Add(f)
+  end
+  
+    
+  ' /////////////////////      
+  maxl = 1      
+  for each f in lstFields 
+    nmf = f.getName
+    lnf = nmf.count
+    maxl = (maxl max lnf)
+  end
+  '
+  ' ...true font chars could not be aligned, unfortunately     
+  '      
+  for each f in lstFields
+    fnm  = f.getName
+    fout = fnm
+    dspace = (maxl - fnm.count)
+    if (dspace > 0) then
+      buff=""
+      for each i in 0..dspace
+        buff = buff + 160.AsChar
+      end
+      fout = fnm + buff
+    end
+    nmFields.Add(fout)  
+  end
+  
+  ' ////////////////////
+  numSel = theVTab.getNumSelRecords 
+  if (numSel = 0) then
+    exit
+  end
+  if (numSel > 1) then
+    exit
+  end
+
+  for each sel in theVTab.getSelection
+    for each f in lstFields
+      val = theVtab.ReturnValueString(f,sel)
+      if ((val = nil) or (val = "")) then 
+        val = " "
+      end
+      valFields.Add(val)
+    end   
+  end
+
+  valUserSettings = MsgBox.MultiInput("", "Werte eingeben", nmFields, valFields)
+
+  if (valUserSettings.count = 0) then
+    return nil
+  end  
+    
+     
+  for each i in 0..(lstFields.count-1)
+
+    f = lstFields.get(i)
+    v = valUserSettings.get(i)
+  
+    if (f.getName="shape") then
+      continue
+    end
+    
+    fType = f.getType
+    aType = fType.AsString.AsTokens("_").get(1)
+    
+    if ((aType="LONG") or (aType="DOUBLE") or (aType="DECIMAL") or (aType="FLOAT")) then    
+      if (v.IsNumber) then
+        val = v.AsNumber
+      end               
+    elseif (aType="DATE") then
+      if (v.IsNumber) then
+        val = v.AsNumber
+        val = val.AsDate
+      end
+    elseif (aType="CHAR") then
+      val = v
+    end
+    
+    theVtab.SetEditable(TRUE)
+    if (theVtab.IsEditable) then
+      for each sel in theVTab.getSelection
+        theVTab.SetValue(f,sel,val)
+      end         
+    end   
+  end
+end
+
+theVtab.SetEditable(FALSE)
+theVTab.GetSelection.ClearAll
+theTable.GetVTab.UpdateSelection
+
